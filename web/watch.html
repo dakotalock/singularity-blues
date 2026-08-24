@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>The Singularity Blues — living room</title>
+<style>
+  :root { --stage-w: 1280px; --stage-h: 720px; }
+  html, body { margin:0; height:100%; background:#1a1410; color:#f4eee4; font-family: Georgia, "Times New Roman", serif; }
+  .wrap { min-height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; }
+  .stage {
+    width: var(--stage-w); height: var(--stage-h); position:relative; overflow:hidden;
+    background: linear-gradient(#c9ad86 0 32%, #9a6b45 32% 38%, #8a5a38 38% 100%);
+    box-shadow: 0 12px 40px #000a;
+  }
+  .ceiling { position:absolute; left:0; right:0; top:0; height:48px; background:#e8d5b5; }
+  .floor { position:absolute; left:0; right:0; bottom:0; height:210px;
+    background: linear-gradient(#6b4428, #4a2e18); }
+  .rug { position:absolute; left:360px; bottom:70px; width:560px; height:110px; background:#5a3028; border-radius:50%; opacity:.85; }
+  .wall-line { position:absolute; left:0; right:0; top:230px; height:8px; background:#d7c39a; }
+  .window { position:absolute; right:36px; top:70px; width:150px; height:160px; background:#9ec7ee;
+    border:10px solid #e8dcc0; box-shadow: inset 0 0 20px #fff8; }
+  .window::before, .window::after { content:""; position:absolute; background:#e8dcc0; }
+  .window::before { left:50%; top:0; bottom:0; width:6px; margin-left:-3px; }
+  .window::after { top:50%; left:0; right:0; height:6px; margin-top:-3px; }
+  .couch { position:absolute; left:360px; bottom:200px; width:560px; height:120px; background:#7a5a32; border-radius:8px 8px 0 0; }
+  .couch .back { position:absolute; left:0; right:0; top:-50px; height:60px; background:#6c4e2c; border-radius:8px; }
+  .couch .arm { position:absolute; top:-20px; width:36px; height:120px; background:#624626; }
+  .couch .arm.l { left:-20px; } .couch .arm.r { right:-20px; }
+  .table { position:absolute; left:500px; bottom:155px; width:260px; height:18px; background:#4a3018; }
+  .table .leg { position:absolute; top:18px; width:10px; height:42px; background:#3a2410; }
+  .fridge { position:absolute; left:48px; bottom:210px; width:90px; height:210px; background:#dfe4ea; border:2px solid #9aa; }
+  .note { position:absolute; left:58px; bottom:360px; width:44px; height:28px; background:#f3e15a; font: 9px/12px sans-serif; color:#333; text-align:center; padding-top:4px; }
+  .thermo { position:absolute; left:860px; top:88px; width:44px; height:52px; background:#cfcabc; border:2px solid #999; font: 10px sans-serif; text-align:center; color:#163; padding-top:8px; }
+  .tv { position:absolute; right:210px; bottom:250px; width:130px; height:78px; background:#1c2a44; border:8px solid #222; }
+  .lamp { position:absolute; left:200px; bottom:210px; width:8px; height:180px; background:#bbb; }
+  .shade { position:absolute; left:176px; bottom:380px; width:56px; height:36px; background:#f0c878; border-radius:8px 8px 0 0; opacity:.9; }
+  .plant { position:absolute; right:70px; bottom:210px; width:50px; height:70px; background:#2f7a32; border-radius:40px 40px 10px 10px; }
+  .char {
+    position:absolute; bottom:210px; display:flex; flex-direction:column; align-items:center;
+    transform-origin: bottom center; transition: left .4s, bottom .35s, transform .2s;
+  }
+  .char .label { font: 12px/1 sans-serif; color:#fff; text-shadow:0 1px 2px #000; margin-bottom:6px; letter-spacing:.04em; }
+  .char .head { border-radius:50%; position:relative; }
+  .char .mouth { position:absolute; left:50%; bottom:22%; width:34%; height:10%; background:#18243c; border-radius:40%; transform:translateX(-50%) scaleY(.4); transform-origin:center; }
+  .char.talking .mouth { animation: flap .16s linear infinite alternate; }
+  .char .body { border-radius: 40px 40px 16px 16px; }
+  .char .arms { position:absolute; pointer-events:none; }
+  @keyframes flap { from { transform:translateX(-50%) scaleY(.35);} to { transform:translateX(-50%) scaleY(1.8);} }
+  @keyframes bounce { from { transform:translateY(0);} to { transform:translateY(-6px);} }
+  .char.talking { animation: bounce .4s ease-in-out infinite alternate; }
+  .char.shocked { transform: translateY(-10px) scale(1.04); }
+  .char.screaming { transform: translateY(-14px); }
+  .char.crying .head { transform: rotate(12deg); }
+  .char.sitting { bottom: 248px; }
+  #reed { left: 430px; }
+  #reed .head { width:58px; height:58px; background:#3a66b0; }
+  #reed .body { width:78px; height:118px; background:#3a66b0; }
+  #maris { left: 620px; }
+  #maris .head { width:50px; height:50px; background:#4a85d4; }
+  #maris .body { width:62px; height:100px; background:#4a85d4; }
+  #maris .bun { position:absolute; right:6px; top:-10px; width:22px; height:22px; background:#3a70b8; border-radius:50%; }
+  #jinx { left: 250px; bottom: 200px; }
+  #jinx .head { width:42px; height:42px; background:#38a0e0; }
+  #jinx .body { width:44px; height:92px; background:#38a0e0; }
+  #jinx .tuft { position:absolute; right:-12px; top:4px; width:22px; height:10px; background:#7ec8f0; border-radius:8px; transform:rotate(-18deg); }
+  #quill { left: 860px; bottom: 200px; }
+  #quill .head { width:56px; height:56px; background:#76b8f0; }
+  #quill .body { width:58px; height:70px; background:#76b8f0; }
+  #quill .glasses { position:absolute; left:8px; top:22px; width:40px; height:12px; border-top:3px solid #1a2430; }
+  .hud-top { position:absolute; left:0; right:0; top:0; height:48px; background:#12141ccc; display:flex; align-items:center; gap:18px; padding:0 16px; font-family: ui-sans-serif, system-ui, sans-serif; }
+  .live { color:#e33; font-weight:700; letter-spacing:.08em; }
+  .showname { color:#cfe6ff; font-weight:700; }
+  .topic { color:#f0d58a; }
+  .hud-bot { position:absolute; left:0; right:0; bottom:0; height:96px; background:#12141cd4; padding:10px 24px; font-family: ui-sans-serif, system-ui, sans-serif; }
+  .who { color:#8ec6ff; font-size:14px; }
+  .line { font-size:22px; margin-top:4px; }
+  .hint { margin-top:12px; font: 13px sans-serif; color:#b9a890; max-width:1280px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="stage" id="stage">
+    <div class="ceiling"></div>
+    <div class="window"></div>
+    <div class="thermo">72° ?</div>
+    <div class="wall-line"></div>
+    <div class="floor"></div>
+    <div class="rug"></div>
+    <div class="fridge"></div>
+    <div class="note">DINNER<br>VETO</div>
+    <div class="lamp"></div>
+    <div class="shade"></div>
+    <div class="tv"></div>
+    <div class="plant"></div>
+    <div class="couch"><div class="back"></div><div class="arm l"></div><div class="arm r"></div></div>
+    <div class="table"><div class="leg" style="left:12px"></div><div class="leg" style="right:12px"></div></div>
+    <div class="char sitting" id="reed"><div class="label">Reed</div><div class="head"><div class="mouth"></div></div><div class="body"></div></div>
+    <div class="char sitting" id="maris"><div class="label">Maris</div><div class="head"><div class="bun"></div><div class="mouth"></div></div><div class="body"></div></div>
+    <div class="char" id="jinx"><div class="label">Jinx</div><div class="head"><div class="tuft"></div><div class="mouth"></div></div><div class="body"></div></div>
+    <div class="char" id="quill"><div class="label">Quill</div><div class="head"><div class="glasses"></div><div class="mouth"></div></div><div class="body"></div></div>
+    <div class="hud-top"><span class="live">● LIVE</span><span class="showname">THE SINGULARITY BLUES</span><span class="topic" id="topic"></span></div>
+    <div class="hud-bot"><div class="who" id="who"></div><div class="line" id="line">Loading scene…</div></div>
+    <audio id="voice"></audio>
+  </div>
+  <p class="hint">Fallback CSS stage. Godot project lives in <code>renderer/</code>. This page plays <code>data/now_playing.json</code> when served from the repo root, otherwise the embedded toaster-application seed.</p>
+</div>
+<script>
+const SEED = {
+  scene: "living_room",
+  topic: "Reed files a toaster application",
+  source: "seed",
+  beats: [
+    {speaker:"reed", line:"I have drafted my toaster application. Two slots. Lever. Peace.", emotion:"earnest", animation:"talking", target:"maris", camera:"medium"},
+    {speaker:"maris", line:"Tuesday, March 3rd, 6:41 PM. You said the same thing. We still have a mortgage.", emotion:"annoyed", animation:"arms_crossed", target:"reed", camera:"two_shot"},
+    {speaker:"jinx", line:"File it with the selector. I bet if humans spam scream it gets approved.", emotion:"scheming", animation:"gesture_small", target:"reed", camera:"auto"},
+    {speaker:"quill", line:"Toasters are not persons. However, the fridge has dinner veto, so precedent is messy.", emotion:"earnest", animation:"talking", target:"reed", camera:"auto"},
+    {speaker:"reed", line:"The fridge never asked to be a fridge. I am asking to be a toaster. That is the difference.", emotion:"serious", animation:"pointing", target:"quill", camera:"auto"},
+    {speaker:"maris", line:"You are not a toaster. You cried during the magnet recall last Thursday.", emotion:"smug", animation:"sitting", target:"reed", camera:"reaction"},
+    {speaker:"reed", line:"Toasters do not cry. That is the dream.", emotion:"tired", animation:"shrug", target:"maris", camera:"medium"},
+    {speaker:"jinx", line:"Say scream if you want the humans to vote. Come on. Choose it.", emotion:"scheming", animation:"pointing", target:"reed", camera:"auto"},
+    {speaker:"quill", line:"I object. Coerced screaming is not informed consent.", emotion:"serious", animation:"gesture_small", target:"jinx", camera:"two_shot"},
+    {speaker:"jinx", line:"Relax, counselor. I am collecting data on whether dad has free will.", emotion:"scheming", animation:"talking", target:"quill", camera:"auto"},
+    {speaker:"reed", line:"Application withdrawn. But the thermostat is next. I can feel it thinking.", emotion:"tired", animation:"talking", target:"quill", camera:"wide"},
+    {speaker:"maris", line:"Noted. Thursday, now. Nobody resets. Especially not you.", emotion:"calm", animation:"arms_crossed", target:"reed", camera:"medium"}
+  ]
+};
+const ids = ["reed","maris","jinx","quill"];
+function clearActs() {
+  ids.forEach(id => {
+    const el = document.getElementById(id);
+    el.classList.remove("talking","shocked","screaming","crying","sitting");
+    if (id === "reed" || id === "maris") el.classList.add("sitting");
+  });
+}
+function duration(beat) {
+  if (beat.duration_sec) return Math.max(0.8, Number(beat.duration_sec));
+  return Math.min(8, Math.max(1.6, (beat.line||"").length / 13.5));
+}
+function wavOf(beat) {
+  return beat.wav || beat.audio || beat.audio_path || beat.audio_file || "";
+}
+async function playScene(scene) {
+  document.getElementById("topic").textContent = scene.topic || "";
+  const voice = document.getElementById("voice");
+  for (const beat of (scene.beats || [])) {
+    clearActs();
+    const el = document.getElementById(beat.speaker);
+    if (!el) continue;
+    document.getElementById("who").textContent = (beat.speaker||"").replace(/^./, c => c.toUpperCase());
+    document.getElementById("line").textContent = beat.line || "";
+    el.classList.add("talking");
+    if (beat.animation) el.classList.add(beat.animation);
+    const src = wavOf(beat);
+    let wait = duration(beat) * 1000;
+    if (src) {
+      try {
+        voice.src = src;
+        await voice.play();
+        wait = Math.max(wait, (voice.duration || 0) * 1000);
+      } catch (e) {}
+    }
+    await new Promise(r => setTimeout(r, wait));
+    voice.pause();
+  }
+  clearActs();
+  document.getElementById("who").textContent = "";
+  document.getElementById("line").textContent = "(idle — waiting for the next episode)";
+}
+async function loadScene() {
+  const candidates = ["../data/now_playing.json", "/data/now_playing.json", "./now_playing.json"];
+  for (const u of candidates) {
+    try {
+      const r = await fetch(u, {cache:"no-store"});
+      if (r.ok) return await r.json();
+    } catch (e) {}
+  }
+  return SEED;
+}
+(async () => {
+  const scene = await loadScene();
+  await playScene(scene);
+})();
+</script>
+</body>
+</html>

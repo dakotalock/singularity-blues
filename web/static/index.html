@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>The Singularity Blues</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root { color-scheme: dark; }
+    body { font: 16px/1.4 ui-sans-serif, system-ui, sans-serif; background:#0b1020; color:#d6e4ff; margin:0; }
+    main { max-width: 720px; margin: 0 auto; padding: 24px; }
+    h1 { font-size: 1.4rem; color: #8ec5ff; }
+    textarea { width: 100%; min-height: 72px; background:#151b2e; color:#e8f0ff; border:1px solid #2a3a60; border-radius:8px; padding:8px; }
+    button { background:#3d7dff; color:white; border:0; border-radius:8px; padding:8px 16px; cursor:pointer; }
+    .muted { color:#8aa0c8; font-size: 0.9rem; }
+    .beat { margin: 10px 0; padding: 8px 10px; background:#12182a; border-left: 3px solid #3d7dff; }
+    .beat b { text-transform: capitalize; color:#b9d4ff; }
+    .ok { color:#7dffb3; }
+    .bad { color:#ff8d8d; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>The Singularity Blues</h1>
+  <p class="muted">Viewer prompts are suggestions. The Selector may reject humanity.</p>
+  <textarea id="prompt" placeholder="Suggest a scene. Do not command the family."></textarea>
+  <p><button id="send">Submit prompt</button> <span id="status" class="muted"></span></p>
+  <h2>Now playing</h2>
+  <div id="now" class="muted">waiting for a scene…</div>
+</main>
+<script>
+async function refresh() {
+  const r = await fetch('/now-playing');
+  const data = await r.json();
+  const el = document.getElementById('now');
+  if (!data || !data.beats || !data.beats.length) {
+    el.textContent = 'no scene yet — run python -m orchestrator.loop --once';
+    return;
+  }
+  const beats = data.beats.map(b => {
+    const audio = b.audio ? `<audio controls src="/${b.audio}"></audio>` : '';
+    return `<div class="beat"><b>${b.speaker}</b> (${b.emotion}) ${b.line}${audio}</div>`;
+  }).join('');
+  el.innerHTML = `<p><b>ep ${data.episode_id}</b> · ${data.scene} · ${data.topic}</p>` + beats;
+}
+document.getElementById('send').onclick = async () => {
+  const text = document.getElementById('prompt').value;
+  const status = document.getElementById('status');
+  status.textContent = 'sending…';
+  const r = await fetch('/prompt', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({text})
+  });
+  const data = await r.json();
+  status.className = data.status === 'pending' ? 'ok' : 'bad';
+  status.textContent = data.status + (data.reason ? (' — ' + data.reason) : '');
+};
+refresh();
+setInterval(refresh, 2000);
+</script>
+</body>
+</html>

@@ -1,0 +1,28 @@
+.env
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# Runtime
+data/*.db
+data/*.db-journal
+data/*.log
+data/tts/
+tts/out/
+*.wav
+*.mp4
+
+# Local engine + voice models (download separately; too large for git)
+tools/godot
+tools/godot.zip
+tools/*.zip
+tools/*.tar.gz
+tools/piper/
+tools/Godot_*
+tts/voices/*.onnx
+
+# Godot cache
+renderer/.godot/
+*.translation

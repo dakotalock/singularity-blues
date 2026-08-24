@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SingularityBluesScene",
+  "type": "object",
+  "required": ["scene", "topic", "beats"],
+  "properties": {
+    "scene": {"type": "string", "enum": ["living_room", "kitchen", "front_yard"]},
+    "topic": {"type": "string", "minLength": 3, "maxLength": 280},
+    "source": {"type": "string", "enum": ["viewer", "autonomous", "seed"]},
+    "beats": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 24,
+      "items": {
+        "type": "object",
+        "required": ["speaker", "line", "emotion", "animation"],
+        "properties": {
+          "speaker": {"type": "string", "enum": ["reed", "maris", "jinx", "quill"]},
+          "line": {"type": "string", "minLength": 1, "maxLength": 280},
+          "emotion": {"type": "string", "enum": ["serious", "annoyed", "scheming", "earnest", "shocked", "laughing", "screaming", "tired", "smug", "calm"]},
+          "animation": {"type": "string", "enum": ["idle", "talking", "gesture_small", "arms_crossed", "shrug", "pointing", "sitting", "walking", "shocked", "crying", "screaming", "enter", "leave"]},
+          "target": {"type": ["string", "null"], "enum": ["reed", "maris", "jinx", "quill", null]},
+          "camera": {"type": "string", "enum": ["auto", "medium", "two_shot", "reaction", "wide", "dramatic_closeup"]}
+        }
+      }
+    }
+  }
+}
