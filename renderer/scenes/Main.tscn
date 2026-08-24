@@ -1,0 +1,33 @@
+[gd_scene load_steps=5 format=3 uid="uid://cbluesmain0001"]
+
+[ext_resource type="Script" path="res://scripts/Main.gd" id="1_main"]
+[ext_resource type="Script" path="res://scripts/LivingRoom.gd" id="2_room"]
+[ext_resource type="Script" path="res://scripts/CameraDirector.gd" id="3_cam"]
+[ext_resource type="Script" path="res://scripts/ScenePlayer.gd" id="4_play"]
+
+[node name="Main" type="Node3D"]
+script = ExtResource("1_main")
+
+[node name="LivingRoom" type="Node3D" parent="."]
+script = ExtResource("2_room")
+
+[node name="Cast" type="Node3D" parent="."]
+
+[node name="CameraDirector" type="Node3D" parent="."]
+script = ExtResource("3_cam")
+
+[node name="Camera3D" type="Camera3D" parent="CameraDirector"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.7, 5.6)
+fov = 40.0
+near = 0.08
+far = 80.0
+current = true
+
+[node name="ScenePlayer" type="Node" parent="."]
+script = ExtResource("4_play")
+
+[node name="Voice" type="AudioStreamPlayer" parent="ScenePlayer"]
+volume_db = 0.0
+
+[node name="HUD" type="CanvasLayer" parent="."]
+layer = 10

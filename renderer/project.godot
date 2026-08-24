@@ -1,0 +1,40 @@
+; Engine configuration file.
+; The Singularity Blues — living-room stage (Godot 4.4)
+
+config_version=5
+
+[application]
+
+config/name="The Singularity Blues"
+config/description="Four original blue sitcom people. A living room that never sleeps."
+config/version="0.1.0"
+run/main_scene="res://scenes/Main.tscn"
+config/features=PackedStringArray("4.4", "GL Compatibility")
+config/icon="res://icon.svg"
+run/max_fps=30
+
+[display]
+
+window/size/viewport_width=1280
+window/size/viewport_height=720
+window/size/window_width_override=1280
+window/size/window_height_override=720
+window/stretch/mode="canvas_items"
+window/stretch/aspect="keep"
+window/vsync/vsync_mode=0
+
+[rendering]
+
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
+anti_aliasing/quality/msaa_3d=1
+environment/defaults/default_clear_color=Color(0.145, 0.118, 0.098, 1)
+
+[editor]
+
+movie_writer/mjpeg_quality=0.85
+movie_writer/fps=30
+
+[audio]
+
+driver/enable_input=false

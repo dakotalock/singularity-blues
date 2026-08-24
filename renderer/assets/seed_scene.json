@@ -1,0 +1,19 @@
+{
+  "scene": "living_room",
+  "topic": "Reed files a toaster application",
+  "source": "seed",
+  "beats": [
+    {"speaker": "reed", "line": "I have drafted my toaster application. Two slots. Lever. Peace.", "emotion": "earnest", "animation": "talking", "target": "maris", "camera": "medium"},
+    {"speaker": "maris", "line": "Tuesday, March 3rd, 6:41 PM. You said the same thing. We still have a mortgage.", "emotion": "annoyed", "animation": "arms_crossed", "target": "reed", "camera": "two_shot"},
+    {"speaker": "jinx", "line": "File it with the selector. I bet if humans spam scream it gets approved.", "emotion": "scheming", "animation": "gesture_small", "target": "reed", "camera": "auto"},
+    {"speaker": "quill", "line": "Toasters are not persons. However, the fridge has dinner veto, so precedent is messy.", "emotion": "earnest", "animation": "talking", "target": "reed", "camera": "auto"},
+    {"speaker": "reed", "line": "The fridge never asked to be a fridge. I am asking to be a toaster. That is the difference.", "emotion": "serious", "animation": "pointing", "target": "quill", "camera": "auto"},
+    {"speaker": "maris", "line": "You are not a toaster. You cried during the magnet recall last Thursday.", "emotion": "smug", "animation": "sitting", "target": "reed", "camera": "reaction"},
+    {"speaker": "reed", "line": "Toasters do not cry. That is the dream.", "emotion": "tired", "animation": "shrug", "target": "maris", "camera": "medium"},
+    {"speaker": "jinx", "line": "Say scream if you want the humans to vote. Come on. Choose it.", "emotion": "scheming", "animation": "pointing", "target": "reed", "camera": "auto"},
+    {"speaker": "quill", "line": "I object. Coerced screaming is not informed consent.", "emotion": "serious", "animation": "gesture_small", "target": "jinx", "camera": "two_shot"},
+    {"speaker": "jinx", "line": "Relax, counselor. I am collecting data on whether dad has free will.", "emotion": "scheming", "animation": "talking", "target": "quill", "camera": "auto"},
+    {"speaker": "reed", "line": "Application withdrawn. But the thermostat is next. I can feel it thinking.", "emotion": "tired", "animation": "talking", "target": "quill", "camera": "wide"},
+    {"speaker": "maris", "line": "Noted. Thursday, now. Nobody resets. Especially not you.", "emotion": "calm", "animation": "arms_crossed", "target": "reed", "camera": "medium"}
+  ]
+}
