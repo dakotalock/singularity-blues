@@ -176,6 +176,10 @@ func play_dict(data: Dictionary, is_seed: bool) -> void:
 	if str(data.get("episode_id", "")) != "":
 		_last_episode_id = str(data.get("episode_id", ""))
 	scene_started.emit(topic, source)
+	if _main != null and _main.has_node("LivingRoom"):
+		var room: Node = _main.get_node("LivingRoom")
+		if room.has_method("apply_setting"):
+			room.apply_setting(_scene_name)
 	_run_token += 1
 	var token := _run_token
 	_playing = true

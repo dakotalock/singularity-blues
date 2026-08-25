@@ -115,6 +115,12 @@ body {
 }
 #sitcom-status.ok { color: #7dffb3; }
 #sitcom-status.bad { color: #ff8d8d; }
+#sitcom-set {
+	position: absolute; left: 12px; top: 58px; z-index: 20;
+	color: #c9b48a; font: 13px/1.3 ui-sans-serif, system-ui, sans-serif;
+	letter-spacing: 0.08em; text-transform: uppercase; pointer-events: none;
+	text-shadow: 0 1px 2px #000;
+}
 		</style>
 		<link id="-gd-engine-icon" rel="icon" type="image/png" href="index.icon.png" />
 <link rel="apple-touch-icon" href="index.apple-touch-icon.png"/>
@@ -122,10 +128,11 @@ body {
 	</head>
 	<body>
 		<div id="sitcom-bar">
-			<button id="sitcom-gen" type="button">Generate episode</button>
-			<input id="sitcom-prompt" type="text" placeholder="Optional: suggest a scene" autocomplete="off" autocorrect="off" />
+			<button id="sitcom-gen" type="button">Ask the Selector</button>
+			<input id="sitcom-prompt" type="text" placeholder="A suggestion. Not a command." autocomplete="off" autocorrect="off" />
 		</div>
 		<p id="sitcom-status"></p>
+		<p id="sitcom-set"></p>
 		<canvas id="canvas">
 			Your browser does not support the canvas tag.
 		</canvas>
@@ -263,6 +270,16 @@ const engine = new Engine(GODOT_CONFIG);
 	const prompt = document.getElementById('sitcom-prompt');
 	const status = document.getElementById('sitcom-status');
 	if (!gen) return;
+	const setEl = document.getElementById('sitcom-set');
+	const SET_LABELS = {living_room:'Living room', kitchen:'Kitchen', front_yard:'Front yard', porch:'Porch', hallway:'Hallway'};
+	async function refreshSet() {
+		try {
+			const d = await (await fetch('/now-playing')).json();
+			if (setEl && d && d.scene) setEl.textContent = SET_LABELS[d.scene] || d.scene;
+		} catch (e) {}
+	}
+	refreshSet();
+	setInterval(refreshSet, 2000);
 	prompt.addEventListener('blur', () => {
 		window.scrollTo(0, 0);
 		document.documentElement.scrollTop = 0;
@@ -273,7 +290,7 @@ const engine = new Engine(GODOT_CONFIG);
 		prompt.blur();
 		gen.disabled = true;
 		status.className = '';
-		status.textContent = 'Queued…';
+		status.textContent = 'The Selector is listening…';
 		try {
 			const text = prompt.value.trim();
 			const started = await fetch('/episode', {
@@ -293,10 +310,10 @@ const engine = new Engine(GODOT_CONFIG);
 				const r = await fetch('/episode/status?job_id=' + encodeURIComponent(job));
 				const s = await r.json();
 				if (s.phase === 'writing' || s.phase === 'queued') {
-					status.textContent = 'Gemini is writing…';
+					status.textContent = 'The Singularity Blues are writing…';
 				} else if (s.phase === 'speaking') {
 					const who = s.speaker ? (' · ' + s.speaker) : '';
-					status.textContent = 'Piper ' + (s.beat || 0) + '/' + (s.beats || 0) + who;
+					status.textContent = 'Casting voices ' + (s.beat || 0) + '/' + (s.beats || 0) + who;
 				} else if (s.status === 'ready') {
 					status.className = 'ok';
 					status.textContent = 'Playing ep ' + (s.episode_id ?? '') + ' · ' + (s.topic || '');
