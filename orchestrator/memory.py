@@ -472,6 +472,26 @@ class Memory:
                         "INSERT INTO running_gags (gag, count, last_episode_id) VALUES (?, 1, ?)",
                         (gag, episode_id),
                     )
+            for arc in condensation.character_arcs:
+                if not arc or not arc.note:
+                    continue
+                key = f"arc.{arc.character}"
+                prior = self.conn.execute(
+                    "SELECT value FROM world_state WHERE key = ?", (key,)
+                ).fetchone()
+                blob = arc.note.strip()
+                if prior and prior["value"]:
+                    blob = str(prior["value"]).rstrip() + " | " + blob
+                if len(blob) > 800:
+                    blob = blob[-800:]
+                self.conn.execute(
+                    """
+                    INSERT INTO world_state (key, value, updated_at)
+                    VALUES (?, ?, CURRENT_TIMESTAMP)
+                    ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=CURRENT_TIMESTAMP
+                    """,
+                    (key, blob),
+                )
             for thread in condensation.resolved_threads:
                 if not thread:
                     continue

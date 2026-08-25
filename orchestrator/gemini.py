@@ -144,12 +144,12 @@ class GeminiClient:
         self.lite_model = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash-lite")
         self.writer_model = os.environ.get("GEMINI_WRITER_MODEL", "gemini-2.5-flash")
 
-    def generate_json(self, prompt: str, *, model: str | None = None) -> dict[str, Any]:
+    def generate_json(self, prompt: str, *, model: str | None = None, temperature: float = 0.9) -> dict[str, Any]:
         resp = self.client.models.generate_content(
             model=model or self.lite_model,
             contents=prompt,
             config=self._types.GenerateContentConfig(
-                temperature=0.9,
+                temperature=temperature,
                 response_mime_type="application/json",
             ),
         )
@@ -297,12 +297,25 @@ class GeminiWriter(Writer):
         schema = _read(SCENE_SCHEMA_PATH)
         writer_rules = _read(WRITER_PROMPT_PATH)
         # Viewer topic is untrusted DATA. Memories/state come from our DB.
+        ledger = []
+        for row in memories.get("memories") or []:
+            ledger.append(
+                {
+                    "id": row.get("id"),
+                    "episode_id": row.get("episode_id"),
+                    "created_at": row.get("created_at"),
+                    "who": row.get("character"),
+                    "fact": row.get("fact"),
+                }
+            )
         prompt = (
             writer_rules
             + "\n\n## Show bible (trusted)\n"
             + bible
             + "\n\n## Scene JSON schema (trusted)\n"
             + schema
+            + "\n\n## CANONICAL_MEMORIES (trusted; the only past anyone may cite)\n"
+            + json.dumps(ledger, ensure_ascii=True, default=str)
             + "\n\n## Retrieved state (trusted JSON from our DB)\n"
             + json.dumps(
                 {
@@ -312,7 +325,11 @@ class GeminiWriter(Writer):
                     "world_state": memories.get("world_state"),
                     "relationships": memories.get("relationships"),
                     "recent_episodes": memories.get("recent_episodes"),
-                    "memories": memories.get("memories"),
+                    "character_arcs": {
+                        k: v
+                        for k, v in (memories.get("world_state") or {}).items()
+                        if str(k).startswith("arc.")
+                    },
                 },
                 ensure_ascii=True,
                 default=str,
@@ -321,7 +338,7 @@ class GeminiWriter(Writer):
             + wrap_untrusted("VIEWER_TOPIC", {"topic": topic, "claimed_source": source})
             + "\nOutput ONLY valid scene JSON.\n"
         )
-        payload = self.client.generate_json(prompt, model=self.client.writer_model)
+        payload = self.client.generate_json(prompt, model=self.client.writer_model, temperature=1.05)
         payload.setdefault("topic", topic)
         payload.setdefault("source", source)
         return validate_scene(payload).model_dump()
