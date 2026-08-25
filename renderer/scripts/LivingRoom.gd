@@ -605,3 +605,47 @@ func _build_lights() -> void:
 	kitchen_fill.shadow_enabled = false
 	kitchen_fill.position = Vector3(-3.70, 2.55, -4.58)
 	lights.add_child(kitchen_fill)
+
+
+func apply_setting(scene_name: String) -> void:
+	var env := get_node_or_null("WorldEnvironment") as WorldEnvironment
+	var lights := get_node_or_null("Lights")
+	var kitchen_fill: OmniLight3D = lights.get_node_or_null("KitchenFill_NoShadows") if lights else null
+	var lamp: OmniLight3D = lights.get_node_or_null("LampPractical_NoShadows") if lights else null
+	var face: SpotLight3D = lights.get_node_or_null("FaceLight_NoShadows") if lights else null
+	var clear := Color(0.145, 0.118, 0.098, 1)
+	match scene_name:
+		"kitchen":
+			clear = Color(0.16, 0.12, 0.08, 1)
+			if kitchen_fill:
+				kitchen_fill.light_energy = 1.15
+			if lamp:
+				lamp.light_energy = 0.45
+		"front_yard":
+			clear = Color(0.35, 0.55, 0.72, 1)
+			if face:
+				face.light_energy = 0.35
+			if lamp:
+				lamp.light_energy = 0.2
+			if kitchen_fill:
+				kitchen_fill.light_energy = 0.15
+		"porch":
+			clear = Color(0.10, 0.12, 0.18, 1)
+			if lamp:
+				lamp.light_energy = 1.1
+			if face:
+				face.light_energy = 0.4
+		"hallway":
+			clear = Color(0.12, 0.10, 0.09, 1)
+			if face:
+				face.light_energy = 0.5
+			if lamp:
+				lamp.light_energy = 0.35
+		_:
+			if kitchen_fill:
+				kitchen_fill.light_energy = 0.48
+			if lamp:
+				lamp.light_energy = 0.72
+			if face:
+				face.light_energy = 0.72
+	RenderingServer.set_default_clear_color(clear)
