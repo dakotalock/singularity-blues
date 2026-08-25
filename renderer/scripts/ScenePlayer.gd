@@ -24,6 +24,7 @@ var _index := 0
 var _scene_name := "living_room"
 var _last_episode_id := ""
 var _web_polling := false
+var _run_token := 0
 
 
 func setup(main: Node, cast: Dictionary, cam: Node, voice: AudioStreamPlayer, staging: Node = null) -> void:
@@ -53,8 +54,15 @@ func _is_web() -> bool:
 func _origin() -> String:
 	if not _is_web():
 		return ""
+	var from_query: Variant = JavaScriptBridge.eval("new URLSearchParams(window.location.search).get('api')")
+	var qs := str(from_query)
+	if qs.begins_with("http"):
+		return qs
 	var value: Variant = JavaScriptBridge.eval("window.location.origin")
-	return str(value)
+	var origin := str(value)
+	if origin.begins_with("http"):
+		return origin
+	return ""
 
 
 func _api_url(path: String) -> String:
@@ -104,7 +112,7 @@ func _web_boot() -> void:
 
 
 func _web_poll() -> void:
-	if _web_polling or _playing:
+	if _web_polling:
 		return
 	_web_polling = true
 	var data := await _http_json(_api_url("/now-playing"))
@@ -168,10 +176,12 @@ func play_dict(data: Dictionary, is_seed: bool) -> void:
 	if str(data.get("episode_id", "")) != "":
 		_last_episode_id = str(data.get("episode_id", ""))
 	scene_started.emit(topic, source)
+	_run_token += 1
+	var token := _run_token
 	_playing = true
 	_index = 0
 	_reset_cast()
-	_run_beats()
+	_run_beats(token)
 
 
 func _reset_cast() -> void:
@@ -183,14 +193,20 @@ func _reset_cast() -> void:
 		actor.reset_home()
 
 
-func _run_beats() -> void:
+func _run_beats(token: int) -> void:
 	while _index < _beats.size():
+		if token != _run_token:
+			return
 		var beat: Variant = _beats[_index]
 		if typeof(beat) != TYPE_DICTIONARY:
 			_index += 1
 			continue
 		await _play_beat(beat, _index)
+		if token != _run_token:
+			return
 		_index += 1
+	if token != _run_token:
+		return
 	_playing = false
 	for id in _cast.keys():
 		var actor: CharacterActor = _cast[id]
@@ -484,3 +500,14 @@ func _embedded_seed() -> Dictionary:
 			{"speaker": "jinx", "line": "I am collecting data on free will.", "emotion": "scheming", "animation": "pointing", "target": "quill", "camera": "reaction"},
 		]
 	}
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if not _is_web():
+		return
+	if event is InputEventMouseButton or event is InputEventScreenTouch:
+		_resume_web_audio()
+
+
+func _resume_web_audio() -> void:
+	JavaScriptBridge.eval("if (window.GodotAudio && GodotAudio.ctx && GodotAudio.ctx.state !== 'running') { GodotAudio.ctx.resume(); }")

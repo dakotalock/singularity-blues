@@ -2,7 +2,7 @@
 <html lang="en">
 	<head>
 		<meta charset="utf-8">
-		<meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1.0">
+		<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 		<title>The Singularity Blues</title>
 		<style>
 html, body, #canvas {
@@ -89,12 +89,43 @@ body {
 	text-align: center;
 	z-index: 1;
 }
+
+#sitcom-bar {
+	position: absolute; left: 10px; right: 10px; top: 10px; z-index: 20;
+	display: flex; gap: 8px; align-items: center;
+	font: 16px/1.3 ui-sans-serif, system-ui, sans-serif;
+	pointer-events: none;
+}
+#sitcom-bar > * { pointer-events: auto; }
+#sitcom-gen {
+	font-size: 16px; background: #3d7dff; color: #fff; border: 0;
+	border-radius: 12px; padding: 12px 14px; cursor: pointer;
+	flex: 0 0 auto; box-shadow: 0 8px 24px rgba(0,0,0,.35);
+}
+#sitcom-gen:disabled { opacity: .55; }
+#sitcom-prompt {
+	flex: 1; min-width: 0; font-size: 16px !important;
+	background: #151b2ecc; color: #e8f0ff; border: 1px solid #2a3a60;
+	border-radius: 12px; padding: 10px 12px;
+}
+#sitcom-status {
+	position: absolute; left: 12px; right: 12px; bottom: 12px; z-index: 20;
+	color: #8aa0c8; font: 16px/1.3 ui-sans-serif, system-ui, sans-serif;
+	text-shadow: 0 1px 2px #000; pointer-events: none;
+}
+#sitcom-status.ok { color: #7dffb3; }
+#sitcom-status.bad { color: #ff8d8d; }
 		</style>
 		<link id="-gd-engine-icon" rel="icon" type="image/png" href="index.icon.png" />
 <link rel="apple-touch-icon" href="index.apple-touch-icon.png"/>
 
 	</head>
 	<body>
+		<div id="sitcom-bar">
+			<button id="sitcom-gen" type="button">Generate episode</button>
+			<input id="sitcom-prompt" type="text" placeholder="Optional: suggest a scene" autocomplete="off" autocorrect="off" />
+		</div>
+		<p id="sitcom-status"></p>
 		<canvas id="canvas">
 			Your browser does not support the canvas tag.
 		</canvas>
@@ -174,6 +205,7 @@ const engine = new Engine(GODOT_CONFIG);
 			} catch (err) {
 				serviceWorkerRegistrationPromise = Promise.reject(new Error('Service worker registration failed.'));
 			}
+			// There's a chance that installing the service worker would fix the issue
 			Promise.race([
 				serviceWorkerRegistrationPromise.then((registration) => {
 					if (registration != null) {
@@ -181,15 +213,18 @@ const engine = new Engine(GODOT_CONFIG);
 					}
 					return registration;
 				}).then(() => engine.installServiceWorker()),
+				// For some reason, `getRegistration()` can stall
 				new Promise((resolve) => {
 					setTimeout(() => resolve(), 2000);
 				}),
 			]).then(() => {
+				// Reload if there was no error.
 				window.location.reload();
 			}).catch((err) => {
 				console.error('Error while registering service worker:', err);
 			});
 		} else {
+			// Display the message as usual
 			const missingMsg = 'Error\nThe following features required to run Godot projects on the Web are missing:\n';
 			displayFailureNotice(missingMsg + missing.join('\n'));
 		}
@@ -211,6 +246,78 @@ const engine = new Engine(GODOT_CONFIG);
 	}
 }());
 		</script>
+
+		<script>
+(function () {
+	function unlockAudio() {
+		try {
+			if (window.GodotAudio && GodotAudio.ctx && GodotAudio.ctx.state !== 'running') {
+				GodotAudio.ctx.resume();
+			}
+		} catch (e) {}
+		const canvas = document.getElementById('canvas');
+		if (canvas) canvas.focus();
+		window.scrollTo(0, 0);
+	}
+	const gen = document.getElementById('sitcom-gen');
+	const prompt = document.getElementById('sitcom-prompt');
+	const status = document.getElementById('sitcom-status');
+	if (!gen) return;
+	prompt.addEventListener('blur', () => {
+		window.scrollTo(0, 0);
+		document.documentElement.scrollTop = 0;
+		setTimeout(() => window.scrollTo(0, 0), 50);
+	});
+	gen.addEventListener('click', async () => {
+		unlockAudio();
+		prompt.blur();
+		gen.disabled = true;
+		status.className = '';
+		status.textContent = 'Queued…';
+		try {
+			const text = prompt.value.trim();
+			const started = await fetch('/episode', {
+				method: 'POST',
+				headers: {'Content-Type': 'application/json'},
+				body: JSON.stringify(text ? {topic: text} : {})
+			});
+			const startData = await started.json();
+			if (!started.ok) {
+				status.className = 'bad';
+				status.textContent = startData.detail || started.statusText || 'failed';
+				gen.disabled = false;
+				return;
+			}
+			const job = startData.job_id;
+			while (true) {
+				const r = await fetch('/episode/status?job_id=' + encodeURIComponent(job));
+				const s = await r.json();
+				if (s.phase === 'writing' || s.phase === 'queued') {
+					status.textContent = 'Gemini is writing…';
+				} else if (s.phase === 'speaking') {
+					const who = s.speaker ? (' · ' + s.speaker) : '';
+					status.textContent = 'Piper ' + (s.beat || 0) + '/' + (s.beats || 0) + who;
+				} else if (s.status === 'ready') {
+					status.className = 'ok';
+					status.textContent = 'Playing ep ' + (s.episode_id ?? '') + ' · ' + (s.topic || '');
+					unlockAudio();
+					gen.disabled = false;
+					return;
+				} else if (s.status === 'error') {
+					status.className = 'bad';
+					status.textContent = s.error || 'failed';
+					gen.disabled = false;
+					return;
+				}
+				await new Promise((resolve) => setTimeout(resolve, 450));
+			}
+		} catch (err) {
+			status.className = 'bad';
+			status.textContent = String(err);
+			gen.disabled = false;
+		}
+	});
+})();
+		</script>
 	</body>
 </html>
-
