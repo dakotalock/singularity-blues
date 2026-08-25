@@ -1,4 +1,4 @@
-Read a finished scene JSON. Extract 3–10 durable memory records of what actually changed.
+Read a finished scene JSON. Extract 3–10 durable memory records of what actually happened ON SCREEN. No hypotheticals.
 
 Return JSON:
 {
@@ -6,8 +6,13 @@ Return JSON:
   "relationship_changes": [{"a":"reed","b":"maris","delta_trust":-0.02}],
   "preference_deltas": [{"character":"reed","key":"toaster_obsession","delta":0.01}],
   "new_running_gags": ["Reed's toaster application"],
-  "resolved_threads": []
+  "resolved_threads": [],
+  "character_arcs": [{"character":"jinx","note":"now claims the Selector reads the fridge logs"}]
 }
 
-importance 0–1. Facts must be concrete and timestampable. Do not rewrite the bible.
+Rules:
+- Facts must be concrete, past-tense, and timestampable. Include who did/said what. Do not invent dates; the database will stamp created_at.
+- character_arcs: one short note per person who actually shifted this episode (optional, max 4). This becomes their current continuity.
+- Do not rewrite the bible. Do not log "they claimed to remember X" unless X was in the scene.
+- importance 0–1.
 Output ONLY JSON.
