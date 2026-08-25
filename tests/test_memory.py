@@ -68,3 +68,28 @@ def test_commit_writes_memory_and_clamps_pref(tmp_path):
         if p["character"] == "reed" and p["key"] == "toaster_obsession"
     )
     assert clamped == 1.0
+
+
+def test_arcs_and_canonical_timestamps(tmp_path):
+    mem = seed(tmp_path / "t.db", force=True)
+    hit = mem.retrieve("casserole timestamps statistically edible")
+    casserole = next(m for m in hit["memories"] if "casserole" in m["fact"].lower())
+    assert casserole.get("id")
+    assert casserole.get("created_at")
+    assert casserole.get("fact")
+    mem.commit(
+        {
+            "new_memories": [],
+            "relationship_changes": [],
+            "preference_deltas": [],
+            "new_running_gags": [],
+            "resolved_threads": [],
+            "character_arcs": [
+                {"character": "jinx", "note": "now claims the Selector reads the fridge logs"}
+            ],
+        },
+        episode_id=1,
+    )
+    world = mem.retrieve("selector")["world_state"]
+    assert "arc.jinx" in world
+    assert "fridge" in world["arc.jinx"].lower()

@@ -4,7 +4,7 @@
   "type": "object",
   "required": ["scene", "topic", "beats"],
   "properties": {
-    "scene": {"type": "string", "enum": ["living_room", "kitchen", "front_yard"]},
+    "scene": {"type": "string", "enum": ["living_room", "kitchen", "front_yard", "porch", "hallway"]},
     "topic": {"type": "string", "minLength": 3, "maxLength": 280},
     "source": {"type": "string", "enum": ["viewer", "autonomous", "seed"]},
     "beats": {

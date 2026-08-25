@@ -35,7 +35,7 @@ Animation = Literal[
     "leave",
 ]
 Camera = Literal["auto", "medium", "two_shot", "reaction", "wide", "dramatic_closeup"]
-SceneName = Literal["living_room", "kitchen", "front_yard"]
+SceneName = Literal["living_room", "kitchen", "front_yard", "porch", "hallway"]
 Source = Literal["viewer", "autonomous", "seed"]
 
 
@@ -100,12 +100,18 @@ class PreferenceDelta(BaseModel):
     delta: float
 
 
+class CharacterArc(BaseModel):
+    character: Speaker
+    note: str = Field(min_length=1, max_length=280)
+
+
 class Condensation(BaseModel):
     new_memories: list[MemoryRecord] = Field(default_factory=list)
     relationship_changes: list[RelationshipChange] = Field(default_factory=list)
     preference_deltas: list[PreferenceDelta] = Field(default_factory=list)
     new_running_gags: list[str] = Field(default_factory=list)
     resolved_threads: list[str] = Field(default_factory=list)
+    character_arcs: list[CharacterArc] = Field(default_factory=list)
 
 
 def validate_scene(payload: dict[str, Any]) -> Scene:

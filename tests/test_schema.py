@@ -51,3 +51,18 @@ def test_rejects_too_few_beats():
     }
     with pytest.raises(ValidationError):
         validate_scene(payload)
+
+
+def test_kitchen_and_porch_are_valid_sets():
+    for name in ("kitchen", "porch", "hallway", "front_yard"):
+        payload = {
+            "scene": name,
+            "topic": "fridge politics on a new set",
+            "beats": [
+                {"speaker": "reed", "line": "I would like to be a toaster in this room too.", "emotion": "tired", "animation": "talking"},
+                {"speaker": "maris", "line": "I have the casserole timestamp on file. I am not inventing a new Tuesday.", "emotion": "annoyed", "animation": "talking"},
+                {"speaker": "jinx", "line": "New walls, same anthill.", "emotion": "scheming", "animation": "talking"},
+                {"speaker": "quill", "line": "I move we take notice of the change of venue.", "emotion": "earnest", "animation": "talking"},
+            ],
+        }
+        assert validate_scene(payload).scene == name

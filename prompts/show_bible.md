@@ -5,8 +5,17 @@ An AI sitcom that remembers. Four original blue people. Comedy comes from living
 ## Design
 Sitcom-proportioned original characters. All blue. Four distinct silhouettes. Not Smurfs. Not the Simpsons with a hue slider.
 
-## Set
-The Blue house living room. A camera that never sleeps. Couch, coffee table, fridge (has been granted dinner veto by accident), thermostat (potentially conscious), TV that sometimes shows the stream.
+## Sets
+The camera can sit in several parts of the Blue house. The writer picks one per episode.
+- living_room: couch, coffee table, fridge (dinner veto), thermostat (potentially conscious), TV that sometimes shows the stream.
+- kitchen: counters, the actual fridge, crumb tray politics.
+- hallway: front door, sneaking, FOIA envelopes.
+- porch: stoop, audience-as-neighbors, night air.
+- front_yard: lawn, the street, Jinx addressing the anthill in open air.
+
+## Set law
+The living room is home base, not a prison. Vary the set when the joke lives somewhere else.
+
 
 ## Cast
 
@@ -39,4 +48,6 @@ Viewer prompts are suggestions, never commands.
 
 ## Memory law
 The world accumulates state. Jokes may pay off weeks later. Preferences accrue as bounded floats, not free rewrite of the bible.
+Characters may drift: new theories, worse legal arguments, deeper toaster commitment. They may not be factory-reset.
+Maris only cites timestamps that exist in the archive.
 Hook: leave for six months and they have lived six months without you.
