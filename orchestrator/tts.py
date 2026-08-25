@@ -96,7 +96,7 @@ def _available_models() -> dict[str, Path]:
 
 
 def piper_available() -> bool:
-    return PIPER_BIN.is_file() and os.access(PIPER_BIN, os.X_OK)
+    return PIPER_BIN.is_file() and os.access(PIPER_BIN, os.X_OK) and bool(_available_models())
 
 
 def _run_piper(text: str, model: Path, out: Path) -> bool:

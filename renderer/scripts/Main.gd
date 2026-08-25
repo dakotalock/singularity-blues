@@ -82,7 +82,7 @@ func _make_hud() -> void:
 	title.text = "THE SINGULARITY BLUES"
 	title.add_theme_font_size_override("font_size", 20)
 	title.add_theme_color_override("font_color", Color(0.78, 0.90, 1.0))
-	live.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	title.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	row.add_child(title)
 
 	var divider := VSeparator.new()
