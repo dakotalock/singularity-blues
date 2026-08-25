@@ -9,7 +9,6 @@ __pycache__/
 data/*.db
 data/*.db-journal
 data/*.log
-data/now_playing.json
 data/tts/
 tts/out/
 *.wav
@@ -27,3 +26,6 @@ tts/voices/*.onnx
 # Godot cache
 renderer/.godot/
 *.translation
+
+# Godot web engine binary (assembled at build from tools/web-engine-parts)
+web/stage/*.wasm

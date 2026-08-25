@@ -4,7 +4,7 @@ services:
     runtime: python
     plan: free
     region: oregon
-    buildCommand: pip install -r requirements.txt
+    buildCommand: pip install -r requirements.txt && python tools/assemble_web_engine.py
     startCommand: uvicorn web.app:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: PYTHON_VERSION
