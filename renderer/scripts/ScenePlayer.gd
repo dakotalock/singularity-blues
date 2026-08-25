@@ -1,6 +1,7 @@
 extends Node
 ## Performs semantic scene beats: authored blocking, camera coverage, WAV speech,
 ## smoothed lip motion, event-sensitive pauses, and occasional silent reactions.
+## On web, scenes load from same-origin /now-playing and the stage stays up.
 
 signal beat_started(beat: Dictionary, index: int)
 signal scene_started(topic: String, source: String)
@@ -21,6 +22,8 @@ var _poll := 0.0
 var _beats: Array = []
 var _index := 0
 var _scene_name := "living_room"
+var _last_episode_id := ""
+var _web_polling := false
 
 
 func setup(main: Node, cast: Dictionary, cam: Node, voice: AudioStreamPlayer, staging: Node = null) -> void:
@@ -32,12 +35,90 @@ func setup(main: Node, cast: Dictionary, cam: Node, voice: AudioStreamPlayer, st
 
 
 func start() -> void:
+	if _is_web():
+		await _web_boot()
+		return
 	_json_path = _resolve_path()
 	if FileAccess.file_exists(_json_path):
 		_mtime = FileAccess.get_modified_time(_json_path)
 		play_file(_json_path)
 	else:
 		play_dict(_embedded_seed(), true)
+
+
+func _is_web() -> bool:
+	return OS.has_feature("web")
+
+
+func _origin() -> String:
+	if not _is_web():
+		return ""
+	var value: Variant = JavaScriptBridge.eval("window.location.origin")
+	return str(value)
+
+
+func _api_url(path: String) -> String:
+	var origin := _origin()
+	if path.begins_with("http://") or path.begins_with("https://"):
+		return path
+	if origin == "":
+		return path
+	if path.begins_with("/"):
+		return origin + path
+	return origin + "/" + path
+
+
+func _http_get(url: String) -> PackedByteArray:
+	var http := HTTPRequest.new()
+	add_child(http)
+	http.timeout = 20.0
+	var err := http.request(url)
+	if err != OK:
+		http.queue_free()
+		return PackedByteArray()
+	var finished: Array = await http.request_completed
+	http.queue_free()
+	if finished.size() < 4:
+		return PackedByteArray()
+	var code := int(finished[1])
+	if code != 200:
+		return PackedByteArray()
+	return finished[3]
+
+
+func _http_json(url: String) -> Dictionary:
+	var body := await _http_get(url)
+	if body.is_empty():
+		return {}
+	var parsed: Variant = JSON.parse_string(body.get_string_from_utf8())
+	return parsed if typeof(parsed) == TYPE_DICTIONARY else {}
+
+
+func _web_boot() -> void:
+	var data := await _http_json(_api_url("/now-playing"))
+	if data.is_empty() or not data.has("beats") or (data.get("beats", []) as Array).is_empty():
+		play_dict(_embedded_seed(), true)
+		return
+	_last_episode_id = str(data.get("episode_id", ""))
+	play_dict(data, false)
+
+
+func _web_poll() -> void:
+	if _web_polling or _playing:
+		return
+	_web_polling = true
+	var data := await _http_json(_api_url("/now-playing"))
+	_web_polling = false
+	if data.is_empty():
+		return
+	var beats: Array = data.get("beats", [])
+	if beats.is_empty():
+		return
+	var eid := str(data.get("episode_id", ""))
+	if eid == "" or eid == _last_episode_id:
+		return
+	_last_episode_id = eid
+	play_dict(data, false)
 
 
 func _resolve_path() -> String:
@@ -84,6 +165,8 @@ func play_dict(data: Dictionary, is_seed: bool) -> void:
 	_scene_name = str(data.get("scene", "living_room"))
 	var topic := str(data.get("topic", "untitled"))
 	var source := str(data.get("source", "seed" if is_seed else "file"))
+	if str(data.get("episode_id", "")) != "":
+		_last_episode_id = str(data.get("episode_id", ""))
 	scene_started.emit(topic, source)
 	_playing = true
 	_index = 0
@@ -168,10 +251,11 @@ func _play_beat(beat: Dictionary, index: int) -> void:
 	var wav_path := _beat_wav(beat)
 	var duration := _beat_duration(beat, wav_path)
 	var played := false
-	if wav_path != "" and FileAccess.file_exists(wav_path):
-		played = _play_wav(wav_path)
-		if played and _voice.stream:
-			duration = maxf(duration, _voice.stream.get_length())
+	if wav_path != "":
+		if _is_web() or FileAccess.file_exists(wav_path):
+			played = await _play_wav(wav_path)
+			if played and _voice.stream:
+				duration = maxf(duration, _voice.stream.get_length())
 	var elapsed := 0.0
 	var line := str(beat.get("line", ""))
 	while elapsed < duration:
@@ -268,6 +352,8 @@ func _beat_wav(beat: Dictionary) -> String:
 
 
 func _resolve_audio(path: String) -> String:
+	if _is_web():
+		return path
 	if path.begins_with("res://") or path.begins_with("user://"):
 		path = ProjectSettings.globalize_path(path)
 	var root := _project_root()
@@ -292,6 +378,15 @@ func _resolve_audio(path: String) -> String:
 	return path
 
 
+func _audio_url(path: String) -> String:
+	if path.begins_with("http://") or path.begins_with("https://"):
+		return path
+	if path.begins_with("/"):
+		return _api_url(path)
+	var filename := path.get_file()
+	return _api_url("/data/tts/" + filename)
+
+
 func _beat_duration(beat: Dictionary, _wav_path: String) -> float:
 	if beat.has("duration_sec"):
 		return maxf(float(beat.get("duration_sec", 1.5)), 0.45)
@@ -301,7 +396,12 @@ func _beat_duration(beat: Dictionary, _wav_path: String) -> float:
 
 
 func _play_wav(path: String) -> bool:
-	var stream := WavLoader.load_file(path)
+	var stream: AudioStreamWAV = null
+	if _is_web():
+		var bytes := await _http_get(_audio_url(path))
+		stream = WavLoader.load_buffer(bytes, path)
+	else:
+		stream = WavLoader.load_file(path)
 	if stream == null:
 		return false
 	_voice.stream = stream
@@ -320,6 +420,8 @@ func _project_root() -> String:
 
 
 func _should_quit() -> bool:
+	if _is_web():
+		return false
 	for arg in OS.get_cmdline_args():
 		if str(arg).begins_with("--write-movie") or str(arg) == "--quit-after-scene":
 			return true
@@ -336,6 +438,9 @@ func _process(delta: float) -> void:
 	if _poll < 1.0:
 		return
 	_poll = 0.0
+	if _is_web():
+		_web_poll()
+		return
 	if not FileAccess.file_exists(_json_path):
 		var portable := _project_root().path_join("data/now_playing.json")
 		if FileAccess.file_exists(ABS_JSON):
