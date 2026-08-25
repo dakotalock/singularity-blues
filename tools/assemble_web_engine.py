@@ -134,6 +134,23 @@ def _engine_from_official_templates() -> None:
     _extract_engine(zbytes)
 
 
+
+def _expose_audio() -> None:
+    js = STAGE / "index.js"
+    if not js.is_file():
+        return
+    text = js.read_text(encoding="utf-8", errors="replace")
+    needle = "GodotAudio.ctx=ctx;"
+    if "window.GodotAudio=GodotAudio" in text:
+        print("GodotAudio already exposed")
+        return
+    if needle not in text:
+        print("GodotAudio.ctx=ctx not found")
+        return
+    js.write_text(text.replace(needle, "GodotAudio.ctx=ctx;window.GodotAudio=GodotAudio;", 1), encoding="utf-8")
+    print("exposed window.GodotAudio")
+
+
 def main() -> None:
     STAGE.mkdir(parents=True, exist_ok=True)
     PARTS.mkdir(parents=True, exist_ok=True)
@@ -145,9 +162,11 @@ def main() -> None:
         if not js.is_file() or js.stat().st_size < 1000:
             if not _engine_from_parts():
                 _engine_from_official_templates()
+        _expose_audio()
         return
     if not _engine_from_parts():
         _engine_from_official_templates()
+    _expose_audio()
 
 
 if __name__ == "__main__":

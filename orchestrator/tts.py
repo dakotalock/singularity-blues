@@ -162,15 +162,19 @@ def _render_line(speaker: str, line: str, dest: Path, models: dict[str, Path]) -
     return wav_duration_sec(dest)
 
 
-def render(scene: dict[str, Any], episode_id: int, out_dir: Path | None = None) -> dict[str, Any]:
+def render(scene: dict[str, Any], episode_id: int, out_dir: Path | None = None, progress=None) -> dict[str, Any]:
     """Write per-beat wavs and return a Godot now_playing packet (also written to disk)."""
     tts_dir = Path(out_dir) if out_dir else TTS_DIR
     tts_dir.mkdir(parents=True, exist_ok=True)
     models = _available_models()
     beats_out: list[dict[str, Any]] = []
-    for i, beat in enumerate(scene.get("beats") or []):
+    scene_beats = list(scene.get("beats") or [])
+    total = len(scene_beats)
+    for i, beat in enumerate(scene_beats):
         speaker = beat.get("speaker") or "reed"
         line = beat.get("line") or "..."
+        if progress:
+            progress({"phase": "speaking", "beat": i + 1, "beats": total, "speaker": speaker})
         filename = f"ep{int(episode_id):04d}_{i:02d}_{speaker}.wav"
         dest = tts_dir / filename
         duration = _render_line(speaker, line, dest, models)

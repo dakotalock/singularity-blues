@@ -33,6 +33,7 @@ def run_episode(
     *,
     topic: str | None = None,
     once: bool = False,
+    progress=None,
 ) -> dict[str, Any]:
     """
     1 collect prompts  2 prefilter  3 selector.choose
@@ -73,12 +74,16 @@ def run_episode(
     retrieved = mem.retrieve(topic)
     bible = load_bible()
     writer = get_writer()
+    if progress:
+        progress({"phase": "writing", "beat": 0, "beats": 0, "speaker": ""})
     scene = writer.write_scene(bible, retrieved, retrieved, topic, source=source)
     scene = validate_scene(scene).model_dump()
 
     episode_id = mem.insert_episode(topic, scene.get("source") or source, scene)
-    packet = render(scene, episode_id)
+    packet = render(scene, episode_id, progress=progress)
     write_now_playing(packet)
+    if progress:
+        progress({"phase": "ready", "beat": len(packet.get("beats") or []), "beats": len(packet.get("beats") or []), "speaker": ""})
 
     condenser = get_condenser()
     condensation = condenser.condense(scene)
