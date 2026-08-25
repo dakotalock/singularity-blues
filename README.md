@@ -19,7 +19,7 @@ python3 -m venv .venv
 
 Local Godot 4.4.1 and Piper are **not** in this repo (too large). See [tools/README.md](tools/README.md).
 
-`GEMINI_API_KEY` is the only user secret, and only later. **Without it the mock writer runs** and still emits valid in-character scene JSON.
+`GEMINI_API_KEY` is the only user secret. Never commit `.env`. Without the key the mock writer still emits valid in-character scene JSON.
 
 Copy `.env.example` to `.env` when you have a key:
 
@@ -32,6 +32,16 @@ Models (when a key is present):
 
 - `GEMINI_MODEL=gemini-2.5-flash-lite` — selector + memory condenser
 - `GEMINI_WRITER_MODEL=gemini-2.5-flash` — scene writer
+
+## Phone test (one button)
+
+```bash
+.venv/bin/uvicorn web.app:app --host 0.0.0.0 --port 8000
+```
+
+Open `/`. Tap **Generate episode**. Each tap asks Gemini for a new scene. Never commit `.env`.
+
+Deploy is a free Render web service (`render.yaml`). Set `GEMINI_API_KEY` in the dashboard. No Godot on that host: you get the script plus audio if Piper is present.
 
 ## Seed the household
 
@@ -69,7 +79,8 @@ Sleeps for the scene’s audio duration between episodes.
 .venv/bin/uvicorn web.app:app --host 0.0.0.0 --port 8000
 ```
 
-- `GET /` — tiny prompt box + now-playing
+- `GET /` — Generate episode button + now-playing
+- `POST /episode` — Gemini writes a new scene (`{ "topic": "..." }` optional)
 - `POST /prompt` — `{ "text": "..." }` (untrusted; moderated; never concatenated raw into system prompts)
 - `GET /now-playing`
 - `GET /characters`

@@ -6,6 +6,8 @@ import json
 import os
 from pathlib import Path
 
+import threading
+
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
@@ -13,6 +15,7 @@ from pydantic import BaseModel, Field
 
 from orchestrator import DATA_DIR, NOW_PLAYING_PATH, ROOT, TTS_DIR, load_dotenv
 from orchestrator.gemini import has_gemini_key
+from orchestrator.loop import run_episode
 from orchestrator.memory import Memory
 from orchestrator.moderation import inspect
 from orchestrator.seed import seed
@@ -25,6 +28,7 @@ STATIC_DIR = Path(__file__).resolve().parent / "static"
 INDEX_HTML = STATIC_DIR / "index.html"
 
 _mem: Memory | None = None
+_episode_lock = threading.Lock()
 
 
 def get_mem() -> Memory:
@@ -72,6 +76,32 @@ def post_prompt(body: PromptIn) -> dict:
         return {"id": pid, "status": "rejected", "reason": check.reason}
     pid = mem.enqueue_prompt(check.text, status="pending")
     return {"id": pid, "status": "pending", "reason": ""}
+
+
+class EpisodeIn(BaseModel):
+    topic: str | None = Field(default=None, max_length=280)
+
+
+@app.post("/episode")
+def post_episode(body: EpisodeIn | None = None) -> dict:
+    """One tap: Gemini writes a new episode. Dakota is the only user."""
+    if not has_gemini_key():
+        raise HTTPException(status_code=503, detail="GEMINI_API_KEY is not set")
+    topic = (body.topic.strip() if body and body.topic else None) or None
+    if topic == "":
+        topic = None
+    try:
+        with _episode_lock:
+            packet = run_episode(get_mem(), topic=topic, once=False)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"episode failed: {type(exc).__name__}") from exc
+    return {
+        "episode_id": packet.get("episode_id"),
+        "topic": packet.get("topic"),
+        "source": packet.get("source"),
+        "writer": "gemini",
+        "beats": packet.get("beats") or [],
+    }
 
 
 @app.get("/now-playing")
