@@ -43,7 +43,10 @@ if [[ ! -x "$GODOT" ]]; then
   exit 1
 fi
 
-COMMON=(--path "$PROJECT" --rendering-driver opengl3 --resolution 1280x720 --audio-driver Dummy)
+# Interactive watch mode must retain WAV playback. Dummy audio belongs only to
+# headless/Xvfb capture, where no sound device is expected.
+COMMON=(--path "$PROJECT" --rendering-driver opengl3 --resolution 1280x720)
+HEADLESS_COMMON=("${COMMON[@]}" --audio-driver Dummy)
 
 run_godot() {
   echo "Launching: $GODOT ${COMMON[*]} $*" >&2
@@ -117,7 +120,7 @@ if [[ "$RECORD" == 1 ]]; then
   if command -v xvfb-run >/dev/null 2>&1; then
     echo "Trying xvfb-run for movie writer..." >&2
     xvfb-run -a -s "-screen 0 1280x720x24" env SINGULARITY_QUIT_AFTER=1 \
-      "$GODOT" "${COMMON[@]}" --write-movie "$AVI" --fixed-fps 30 --quit-after 3300 --disable-vsync \
+      "$GODOT" "${HEADLESS_COMMON[@]}" --write-movie "$AVI" --fixed-fps 30 --quit-after 3300 --disable-vsync \
       -- --quit-after-scene "${USER_ARGS[@]}" || true
     if [[ -s "$AVI" ]]; then
       encode_mp4 || echo "AVI written: $AVI"
@@ -146,7 +149,7 @@ fi
 if command -v xvfb-run >/dev/null 2>&1; then
   echo "No usable DISPLAY; recording under xvfb-run." >&2
   xvfb-run -a -s "-screen 0 1280x720x24" env SINGULARITY_QUIT_AFTER=1 \
-    "$GODOT" "${COMMON[@]}" --write-movie "$AVI" --fixed-fps 30 --quit-after 3300 --disable-vsync \
+    "$GODOT" "${HEADLESS_COMMON[@]}" --write-movie "$AVI" --fixed-fps 30 --quit-after 3300 --disable-vsync \
     -- --quit-after-scene "${USER_ARGS[@]}" || true
   if [[ -s "$AVI" ]]; then
     encode_mp4 || true

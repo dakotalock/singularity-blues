@@ -1,0 +1,14 @@
+{
+  "scene": "living_room",
+  "topic": "Authored anchors, seating, walking, entrance, and exit check",
+  "source": "seed",
+  "beats": [
+    {"speaker": "jinx", "line": "I have entered with an idea nobody approved.", "emotion": "scheming", "animation": "enter", "target": "reed", "camera": "wide", "duration_sec": 0.50},
+    {"speaker": "jinx", "line": "I am crossing to a legal distance from counsel.", "emotion": "calm", "animation": "walking", "target": "quill", "camera": "wide", "duration_sec": 0.50},
+    {"speaker": "quill", "line": "The chair is now a temporary court.", "emotion": "serious", "animation": "sitting", "target": "jinx", "camera": "two_shot", "duration_sec": 0.50},
+    {"speaker": "reed", "line": "I would like the record to show I stayed seated.", "emotion": "tired", "animation": "shrug", "target": "maris", "camera": "medium", "duration_sec": 0.50},
+    {"speaker": "maris", "line": "The couch has three anchors. You occupied exactly one.", "emotion": "annoyed", "animation": "arms_crossed", "target": "reed", "camera": "two_shot", "duration_sec": 0.50},
+    {"speaker": "jinx", "line": "I am leaving before the furniture is deposed.", "emotion": "scheming", "animation": "leave", "target": "quill", "camera": "wide", "duration_sec": 0.50},
+    {"speaker": "quill", "line": "Let the record reflect a clean exit.", "emotion": "earnest", "animation": "gesture_small", "target": "maris", "camera": "reaction", "duration_sec": 0.50}
+  ]
+}

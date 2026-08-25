@@ -1,0 +1,15 @@
+{
+  "scene": "living_room",
+  "topic": "Facial performance and reaction coverage check",
+  "source": "seed",
+  "beats": [
+    {"speaker": "reed", "line": "I am calm, which is different from having accepted this.", "emotion": "tired", "animation": "talking", "target": "maris", "camera": "medium", "duration_sec": 0.55},
+    {"speaker": "maris", "line": "I have the timestamp proving otherwise.", "emotion": "smug", "animation": "arms_crossed", "target": "reed", "camera": "two_shot", "duration_sec": 0.55},
+    {"speaker": "jinx", "line": "What if the camera is also a viewer prompt?", "emotion": "scheming", "animation": "gesture_small", "target": "quill", "camera": "medium", "duration_sec": 0.55},
+    {"speaker": "quill", "line": "Then it has observer status, not voting rights.", "emotion": "serious", "animation": "pointing", "target": "jinx", "camera": "reaction", "duration_sec": 0.55},
+    {"speaker": "reed", "line": "The toaster moved.", "emotion": "shocked", "animation": "shocked", "target": "maris", "camera": "dramatic_closeup", "duration_sec": 0.55},
+    {"speaker": "maris", "line": "IT HAS ALWAYS BEEN THERE.", "emotion": "screaming", "animation": "screaming", "target": "reed", "camera": "dramatic_closeup", "duration_sec": 0.55},
+    {"speaker": "jinx", "line": "Excellent. The control group is ruined.", "emotion": "laughing", "animation": "shrug", "target": "maris", "camera": "two_shot", "duration_sec": 0.55},
+    {"speaker": "quill", "line": "I object on behalf of the control group.", "emotion": "earnest", "animation": "gesture_small", "target": "jinx", "camera": "reaction", "duration_sec": 0.55}
+  ]
+}

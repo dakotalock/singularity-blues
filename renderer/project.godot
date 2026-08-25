@@ -28,7 +28,13 @@ window/vsync/vsync_mode=0
 renderer/rendering_method="gl_compatibility"
 renderer/rendering_method.mobile="gl_compatibility"
 anti_aliasing/quality/msaa_3d=1
+lights_and_shadows/directional_shadow/size=2048
+lights_and_shadows/positional_shadow/atlas_size=1024
 environment/defaults/default_clear_color=Color(0.145, 0.118, 0.098, 1)
+
+[debug]
+
+show_name_labels=false
 
 [editor]
 
