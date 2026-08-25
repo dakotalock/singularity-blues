@@ -82,7 +82,7 @@ func _make_hud() -> void:
 	title.text = "THE SINGULARITY BLUES"
 	title.add_theme_font_size_override("font_size", 20)
 	title.add_theme_color_override("font_color", Color(0.78, 0.90, 1.0))
-	title.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	live.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	row.add_child(title)
 
 	var divider := VSeparator.new()
@@ -176,6 +176,8 @@ func _on_scene_finished() -> void:
 
 
 func _save_still_after(filename: String, delay: float) -> void:
+	if OS.has_feature("web"):
+		return
 	await get_tree().create_timer(delay).timeout
 	await RenderingServer.frame_post_draw
 	var texture := get_viewport().get_texture()

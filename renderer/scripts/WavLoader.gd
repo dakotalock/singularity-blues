@@ -2,6 +2,20 @@ extends RefCounted
 class_name WavLoader
 ## Runtime PCM WAV loader for external beat audio (not imported).
 
+static func load_buffer(bytes: PackedByteArray, label: String = "buffer") -> AudioStreamWAV:
+	if bytes.is_empty():
+		push_warning("WavLoader: empty " + label)
+		return null
+	var tmp := "user://_incoming.wav"
+	var out := FileAccess.open(tmp, FileAccess.WRITE)
+	if out == null:
+		push_warning("WavLoader: cannot write scratch for " + label)
+		return null
+	out.store_buffer(bytes)
+	out.close()
+	return load_file(tmp)
+
+
 static func load_file(path: String) -> AudioStreamWAV:
 	var f := FileAccess.open(path, FileAccess.READ)
 	if f == null:

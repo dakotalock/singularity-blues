@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+import subprocess
+import sys
 
 import threading
 
@@ -25,6 +27,7 @@ load_dotenv()
 
 app = FastAPI(title="The Singularity Blues", version="0.1.0")
 STATIC_DIR = Path(__file__).resolve().parent / "static"
+STAGE_DIR = Path(__file__).resolve().parent / "stage"
 INDEX_HTML = STATIC_DIR / "index.html"
 
 _mem: Memory | None = None
@@ -47,6 +50,9 @@ def _startup() -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     TTS_DIR.mkdir(parents=True, exist_ok=True)
     get_mem()
+    assembler = ROOT / "tools" / "assemble_web_engine.py"
+    if assembler.is_file():
+        subprocess.run([sys.executable, str(assembler)], check=False)
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -64,6 +70,7 @@ def healthz() -> dict:
         "piper": piper_available(),
         "db": str(get_mem().db_path),
         "now_playing": NOW_PLAYING_PATH.is_file(),
+        "stage": (STAGE_DIR / "index.html").is_file() and (STAGE_DIR / "index.wasm").is_file(),
     }
 
 
@@ -76,6 +83,8 @@ def post_prompt(body: PromptIn) -> dict:
         return {"id": pid, "status": "rejected", "reason": check.reason}
     pid = mem.enqueue_prompt(check.text, status="pending")
     return {"id": pid, "status": "pending", "reason": ""}
+
+
 
 
 class EpisodeIn(BaseModel):
@@ -103,7 +112,6 @@ def post_episode(body: EpisodeIn | None = None) -> dict:
         "beats": packet.get("beats") or [],
     }
 
-
 @app.get("/now-playing")
 def now_playing() -> dict:
     if not NOW_PLAYING_PATH.is_file():
@@ -121,6 +129,14 @@ def memories() -> dict:
     return {"memories": get_mem().list_memories(limit=50)}
 
 
+@app.get("/stage/index.wasm")
+def stage_wasm():
+    path = STAGE_DIR / "index.wasm"
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="stage wasm missing")
+    return FileResponse(path, media_type="application/wasm")
+
+
 @app.get("/history")
 def history() -> dict:
     return {"episodes": get_mem().list_episodes(limit=30)}
@@ -130,3 +146,5 @@ if (DATA_DIR).is_dir():
     app.mount("/data", StaticFiles(directory=str(DATA_DIR)), name="data")
 if STATIC_DIR.is_dir():
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+if STAGE_DIR.is_dir() and (STAGE_DIR / "index.html").is_file():
+    app.mount("/stage", StaticFiles(directory=str(STAGE_DIR), html=True), name="stage")

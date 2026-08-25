@@ -6,54 +6,37 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <style>
     :root { color-scheme: dark; }
-    body { font: 17px/1.45 ui-sans-serif, system-ui, sans-serif; background:#0b1020; color:#d6e4ff; margin:0; }
-    main { max-width: 720px; margin: 0 auto; padding: 20px 16px 48px; }
-    h1 { font-size: 1.35rem; color: #8ec5ff; margin: 0 0 8px; }
-    textarea { width: 100%; min-height: 64px; background:#151b2e; color:#e8f0ff; border:1px solid #2a3a60; border-radius:10px; padding:10px; box-sizing:border-box; }
-    button { font-size: 1.05rem; background:#3d7dff; color:white; border:0; border-radius:12px; padding:14px 18px; cursor:pointer; width:100%; }
-    button:disabled { opacity: 0.55; cursor: wait; }
-    .muted { color:#8aa0c8; font-size: 0.92rem; }
-    .beat { margin: 10px 0; padding: 10px 12px; background:#12182a; border-left: 3px solid #3d7dff; border-radius: 0 8px 8px 0; }
-    .beat b { text-transform: capitalize; color:#b9d4ff; }
-    .ok { color:#7dffb3; }
-    .bad { color:#ff8d8d; }
-    audio { width: 100%; margin-top: 6px; }
+    html, body { margin:0; height:100%; background:#07090f; color:#d6e4ff;
+      font: 16px/1.4 ui-sans-serif, system-ui, sans-serif; overflow:hidden; }
+    #stage { position:absolute; inset:0; border:0; width:100%; height:100%; background:#07090f; }
+    #bar { position:absolute; left:12px; right:12px; top:12px; z-index:5;
+      display:flex; gap:8px; align-items:center; pointer-events:none; }
+    #bar > * { pointer-events:auto; }
+    button { font-size:1rem; background:#3d7dff; color:#fff; border:0; border-radius:12px;
+      padding:12px 16px; cursor:pointer; flex: 0 0 auto; box-shadow:0 8px 24px rgba(0,0,0,.35); }
+    button:disabled { opacity:.55; cursor:wait; }
+    #prompt { flex:1; min-width:0; background:#151b2ecc; color:#e8f0ff; border:1px solid #2a3a60;
+      border-radius:12px; padding:10px 12px; }
+    #status { position:absolute; left:12px; right:12px; bottom:12px; z-index:5;
+      color:#8aa0c8; font-size:.9rem; text-shadow:0 1px 2px #000; pointer-events:none; }
+    .ok { color:#7dffb3 !important; }
+    .bad { color:#ff8d8d !important; }
   </style>
 </head>
 <body>
-<main>
-  <h1>The Singularity Blues</h1>
-  <p class="muted">Tap once. Gemini writes a new episode. Optional prompt is a suggestion, not a command.</p>
-  <p><button id="gen">Generate episode</button></p>
-  <textarea id="prompt" placeholder="Optional: suggest a scene"></textarea>
-  <p id="status" class="muted"></p>
-  <h2>Now playing</h2>
-  <div id="now" class="muted">no episode yet</div>
-</main>
+  <iframe id="stage" src="/stage/index.html" allow="autoplay; fullscreen" title="Living room"></iframe>
+  <div id="bar">
+    <button id="gen">Generate episode</button>
+    <input id="prompt" placeholder="Optional: suggest a scene" />
+  </div>
+  <p id="status"></p>
 <script>
-function renderEpisode(data) {
-  const el = document.getElementById('now');
-  if (!data || !data.beats || !data.beats.length) {
-    el.textContent = 'no episode yet';
-    return;
-  }
-  const beats = data.beats.map(b => {
-    const src = b.audio ? (b.audio.startsWith('/') ? b.audio : '/' + b.audio) : '';
-    const audio = src ? `<audio controls src="${src}"></audio>` : '';
-    return `<div class="beat"><b>${b.speaker}</b> (${b.emotion || ''}) ${b.line || ''}${audio}</div>`;
-  }).join('');
-  el.innerHTML = `<p><b>ep ${data.episode_id ?? ''}</b> · ${data.topic || ''}</p>` + beats;
-}
-async function refresh() {
-  const r = await fetch('/now-playing');
-  renderEpisode(await r.json());
-}
+const status = document.getElementById('status');
 document.getElementById('gen').onclick = async () => {
   const btn = document.getElementById('gen');
-  const status = document.getElementById('status');
   const text = document.getElementById('prompt').value.trim();
   btn.disabled = true;
-  status.className = 'muted';
+  status.className = '';
   status.textContent = 'Gemini is writing…';
   try {
     const r = await fetch('/episode', {
@@ -68,8 +51,7 @@ document.getElementById('gen').onclick = async () => {
       return;
     }
     status.className = 'ok';
-    status.textContent = 'ep ' + data.episode_id + ' · ' + (data.writer || 'gemini');
-    renderEpisode(data);
+    status.textContent = 'ep ' + data.episode_id + ' · living room will pick it up';
   } catch (err) {
     status.className = 'bad';
     status.textContent = String(err);
@@ -77,7 +59,9 @@ document.getElementById('gen').onclick = async () => {
     btn.disabled = false;
   }
 };
-refresh();
+fetch('/healthz').then(r => r.json()).then(h => {
+  if (!h.stage) status.textContent = 'Stage export is still assembling.';
+}).catch(() => {});
 </script>
 </body>
 </html>
