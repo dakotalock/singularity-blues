@@ -172,14 +172,59 @@ def pin(packet: dict[str, Any]) -> dict[str, Any]:
         state["airing"] = int(state["airing"] or 0) + 1
         state["started_at"] = time.time()
         _save(state)
+        try:
+            from orchestrator import archive
+            archive.upsert_episode(stored)
+        except Exception:
+            pass
         return _publish(state)
+
+
+def _ingest_archived(items: list[dict[str, Any]]) -> None:
+    """Re-voice stored scripts into the local playlist. No writer."""
+    if not items:
+        return
+    from orchestrator.tts import render as render_scene
+
+    with _lock:
+        state = _load()
+        have = {p.get("episode_id") for p in state["packets"]}
+    fresh: list[dict[str, Any]] = []
+    for item in items:
+        eid = item.get("id")
+        scene = item.get("scene") or {}
+        if eid in have or not scene.get("beats"):
+            continue
+        packet = render_scene(scene, int(eid))
+        packet["source"] = scene.get("source") or "viewer"
+        fresh.append(packet)
+    if not fresh:
+        return
+    with _lock:
+        state = _load()
+        have = {p.get("episode_id") for p in state["packets"]}
+        for packet in fresh:
+            if packet.get("episode_id") not in have:
+                state["packets"].append(packet)
+        _save(state)
 
 
 def ensure_voiced_boot(mem) -> dict[str, Any]:
     """Start on a random rerun. Seed is last resort when the pool is empty. No writer call."""
     from copy import deepcopy as dc
 
+    from orchestrator import archive
     from orchestrator.gemini import TOASTER_APPLICATION_SCENE
+
+    try:
+        archive.init()
+        try:
+            mem.restore_from_archive()
+        except Exception:
+            pass
+        _ingest_archived(archive.list_scenes())
+    except Exception:
+        pass
 
     with _lock:
         state = _load()

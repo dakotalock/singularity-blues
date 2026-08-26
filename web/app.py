@@ -20,6 +20,7 @@ from orchestrator.loop import run_episode
 from orchestrator.memory import Memory
 from orchestrator.moderation import inspect
 from orchestrator.seed import seed
+from orchestrator import archive
 from orchestrator.playlist import current as playlist_current, ensure_voiced_boot, pin as playlist_pin, snapshot as playlist_snapshot
 from orchestrator.tts import piper_available
 
@@ -67,6 +68,10 @@ def _startup() -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     TTS_DIR.mkdir(parents=True, exist_ok=True)
     mem = get_mem()
+    try:
+        archive.init()
+    except Exception:
+        pass
     assembler = ROOT / "tools" / "assemble_web_engine.py"
     if assembler.is_file():
         subprocess.run([sys.executable, str(assembler)], check=False)
