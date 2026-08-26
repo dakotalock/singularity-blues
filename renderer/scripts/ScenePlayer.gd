@@ -224,6 +224,8 @@ func _run_beats(token: int) -> void:
 	if _cam:
 		_cam.idle_master()
 	scene_finished.emit()
+	if _is_web():
+		_web_poll()
 	if _should_quit():
 		await get_tree().create_timer(0.8).timeout
 		get_tree().quit()
@@ -452,14 +454,14 @@ func _should_quit() -> bool:
 
 
 func _process(delta: float) -> void:
-	if _playing:
-		return
 	_poll += delta
 	if _poll < 1.0:
 		return
 	_poll = 0.0
 	if _is_web():
 		_web_poll()
+		return
+	if _playing:
 		return
 	if not FileAccess.file_exists(_json_path):
 		var portable := _project_root().path_join("data/now_playing.json")
