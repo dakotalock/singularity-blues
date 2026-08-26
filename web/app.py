@@ -20,6 +20,7 @@ from orchestrator.loop import run_episode
 from orchestrator.memory import Memory
 from orchestrator.moderation import inspect
 from orchestrator.seed import seed
+from orchestrator.playlist import current as playlist_current, ensure_voiced_boot, pin as playlist_pin, snapshot as playlist_snapshot
 from orchestrator.tts import piper_available
 
 load_dotenv()
@@ -65,10 +66,18 @@ class EpisodeIn(BaseModel):
 def _startup() -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     TTS_DIR.mkdir(parents=True, exist_ok=True)
-    get_mem()
+    mem = get_mem()
     assembler = ROOT / "tools" / "assemble_web_engine.py"
     if assembler.is_file():
         subprocess.run([sys.executable, str(assembler)], check=False)
+
+    def _boot_house() -> None:
+        try:
+            ensure_voiced_boot(mem)
+        except Exception:
+            pass
+
+    threading.Thread(target=_boot_house, daemon=True, name="voiced-boot").start()
 
 
 @app.get("/")
@@ -143,6 +152,7 @@ def post_episode(body: EpisodeIn | None = None) -> dict:
             _progress({"phase": "writing"})
             with _episode_lock:
                 packet = run_episode(get_mem(), topic=topic, once=False, progress=_progress)
+                playlist_pin(packet)
             with _jobs_lock:
                 job = _jobs[job_id]
                 job["status"] = "ready"
@@ -175,9 +185,12 @@ def episode_status(job_id: str | None = None) -> dict:
 
 @app.get("/now-playing")
 def now_playing() -> dict:
-    if not NOW_PLAYING_PATH.is_file():
-        return {"episode_id": None, "scene": None, "topic": None, "beats": []}
-    return json.loads(NOW_PLAYING_PATH.read_text(encoding="utf-8"))
+    packet = playlist_current()
+    if packet.get("beats"):
+        return packet
+    if NOW_PLAYING_PATH.is_file():
+        return json.loads(NOW_PLAYING_PATH.read_text(encoding="utf-8"))
+    return {"episode_id": None, "scene": None, "topic": None, "beats": []}
 
 
 @app.get("/characters")
@@ -206,6 +219,11 @@ def stage_wasm():
     if not path.is_file():
         raise HTTPException(status_code=404, detail="stage wasm missing")
     return FileResponse(path, media_type="application/wasm")
+
+
+@app.get("/playlist")
+def playlist() -> dict:
+    return playlist_snapshot()
 
 
 @app.get("/history")
