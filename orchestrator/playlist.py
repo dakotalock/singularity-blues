@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import random
 import threading
 import time
 from copy import deepcopy
@@ -17,6 +18,7 @@ GRACE_SEC = 1.75
 
 _lock = threading.RLock()
 _state: dict[str, Any] | None = None
+_rng = random.Random()
 
 
 def _packet_wav_ok(packet: dict[str, Any]) -> bool:
@@ -42,6 +44,23 @@ def _duration(packet: dict[str, Any]) -> float:
     for beat in packet.get("beats") or []:
         total += float(beat.get("duration_sec") or 1.5)
     return max(8.0, total)
+
+
+
+def _random_index(packets: list[dict[str, Any]], avoid: int | None = None) -> int:
+    """Random rerun. Prefer real episodes over the seed when both exist."""
+    n = len(packets)
+    if n <= 0:
+        return 0
+    if n == 1:
+        return 0
+    preferred = [i for i, pkt in enumerate(packets) if pkt.get("source") != "seed"]
+    pool = preferred or list(range(n))
+    if avoid is not None and len(pool) > 1:
+        narrowed = [i for i in pool if i != avoid]
+        if narrowed:
+            pool = narrowed
+    return _rng.choice(pool)
 
 
 def _empty_state() -> dict[str, Any]:
@@ -115,7 +134,7 @@ def _advance_if_due(state: dict[str, Any], now: float) -> None:
     limit = _duration(packets[idx]) + GRACE_SEC
     if now - started < limit:
         return
-    state["index"] = (idx + 1) % len(packets)
+    state["index"] = _random_index(packets, avoid=idx)
     state["airing"] = int(state["airing"] or 0) + 1
     state["started_at"] = now
     _save(state)
@@ -157,7 +176,7 @@ def pin(packet: dict[str, Any]) -> dict[str, Any]:
 
 
 def ensure_voiced_boot(mem) -> dict[str, Any]:
-    """If the playlist is empty, Piper (or tone) the seed scene. No writer call."""
+    """Start on a random rerun. Seed is last resort when the pool is empty. No writer call."""
     from copy import deepcopy as dc
 
     from orchestrator.gemini import TOASTER_APPLICATION_SCENE
@@ -165,12 +184,15 @@ def ensure_voiced_boot(mem) -> dict[str, Any]:
     with _lock:
         state = _load()
         if state["packets"]:
-            if not state.get("started_at"):
-                state["started_at"] = time.time()
-                if not state.get("airing"):
-                    state["airing"] = 1
-                _save(state)
+            state["index"] = _random_index(state["packets"])
+            state["airing"] = max(1, int(state["airing"] or 0) + 1)
+            state["started_at"] = time.time()
+            _save(state)
             return _publish(state)
+
+    recovered = _recover_random_from_db(mem)
+    if recovered is not None:
+        return pin(recovered)
 
     scene = dc(TOASTER_APPLICATION_SCENE)
     scene["source"] = "seed"
@@ -178,6 +200,36 @@ def ensure_voiced_boot(mem) -> dict[str, Any]:
     packet = render(scene, episode_id)
     packet["source"] = "seed"
     return pin(packet)
+
+
+def _recover_random_from_db(mem) -> dict[str, Any] | None:
+    """Rebuild one random past episode from sqlite if wavs/playlist were empty."""
+    try:
+        rows = mem.conn.execute(
+            "SELECT id, topic, source, scene_json FROM episodes "
+            "WHERE scene_json IS NOT NULL ORDER BY id DESC LIMIT 50"
+        ).fetchall()
+    except Exception:
+        return None
+    if not rows:
+        return None
+    mapped = []
+    for row in rows:
+        try:
+            scene = json.loads(row["scene_json"])
+        except (TypeError, json.JSONDecodeError):
+            continue
+        if not scene:
+            continue
+        mapped.append((int(row["id"]), str(row["source"] or ""), scene))
+    if not mapped:
+        return None
+    preferred = [m for m in mapped if m[1] != "seed"]
+    pool = preferred or mapped
+    episode_id, source, scene = _rng.choice(pool)
+    packet = render(scene, episode_id)
+    packet["source"] = source or "viewer"
+    return packet
 
 
 def snapshot() -> dict[str, Any]:
