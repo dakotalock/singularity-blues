@@ -240,7 +240,7 @@ const engine = new Engine(GODOT_CONFIG);
 		const sitcomStatus = document.getElementById('sitcom-status');
 		async function waitForVoicedShow() {
 			if (sitcomStatus) sitcomStatus.textContent = 'The house is waking up…';
-			for (let i = 0; i < 90; i++) {
+			for (let i = 0; i < 300; i++) {
 				try {
 					const d = await (await fetch('/now-playing')).json();
 					const beats = (d && d.beats) || [];
