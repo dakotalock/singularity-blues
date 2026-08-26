@@ -15,6 +15,7 @@ from orchestrator.moderation import prefilter
 from orchestrator.schemas import validate_scene
 from orchestrator.seed import seed
 from orchestrator.selector import choose
+from orchestrator.playlist import pin as playlist_pin
 from orchestrator.tts import render, write_now_playing
 
 
@@ -82,6 +83,7 @@ def run_episode(
     episode_id = mem.insert_episode(topic, scene.get("source") or source, scene)
     packet = render(scene, episode_id, progress=progress)
     write_now_playing(packet)
+    playlist_pin(packet)
     if progress:
         progress({"phase": "ready", "beat": len(packet.get("beats") or []), "beats": len(packet.get("beats") or []), "speaker": ""})
 
