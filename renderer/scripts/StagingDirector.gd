@@ -12,8 +12,8 @@ var _last_speaker: String = ""
 var _previous_speaker: String = ""
 
 const HOME_ANCHORS := {
-	"reed": "couch_left",
-	"maris": "couch_right",
+	"reed": "couch_front_left",
+	"maris": "couch_front_right",
 	"jinx": "rug_left",
 	"quill": "rug_right",
 }
@@ -265,6 +265,8 @@ func _fallback_anchors() -> Dictionary:
 		"couch_left": _a(Vector3(-0.86, 0, -2.48), true, 0.68),
 		"couch_center": _a(Vector3(0.0, 0, -2.48), true, 0.68),
 		"couch_right": _a(Vector3(0.86, 0, -2.48), true, 0.68),
+		"couch_front_left": _a(Vector3(-0.95, 0, -1.84)),
+		"couch_front_right": _a(Vector3(0.95, 0, -1.84)),
 		"chair": _a(Vector3(-2.75, 0, -1.62), true, 0.64, -0.16),
 		"rug_left": _a(Vector3(-2.25, 0, -0.35)),
 		"rug_center": _a(Vector3(0.0, 0, -0.25)),

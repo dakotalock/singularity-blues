@@ -28,6 +28,8 @@ func _build_anchors() -> void:
 		"couch_left": _anchor(Vector3(-1.18, 0.0, -2.56), 0.0, true, 0.60),
 		"couch_center": _anchor(Vector3(0.0, 0.0, -2.56), 0.0, true, 0.60),
 		"couch_right": _anchor(Vector3(1.18, 0.0, -2.56), 0.0, true, 0.60),
+		"couch_front_left": _anchor(Vector3(-0.95, 0.0, -1.84)),
+		"couch_front_right": _anchor(Vector3(0.95, 0.0, -1.84)),
 		"chair": _anchor(Vector3(-3.30, 0.0, -1.38), 0.0, true, 0.58),
 		"rug_left": _anchor(Vector3(-1.72, 0.0, -0.58)),
 		"rug_center": _anchor(Vector3(0.0, 0.0, -0.48)),
