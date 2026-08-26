@@ -272,6 +272,26 @@ class Memory:
             ).fetchone()
             return row["value"] if row else default
 
+    def restore_from_archive(self) -> None:
+        try:
+            from orchestrator import archive
+            rows = archive.list_memories()
+        except Exception:
+            return
+        have = {(m.get("fact") or "") for m in self.list_memories(limit=500)}
+        for row in rows:
+            fact = (row.get("fact") or "").strip()
+            if not fact or fact in have:
+                continue
+            self.add_memory(
+                fact,
+                character=row.get("character"),
+                importance=float(row.get("importance") or 0.5),
+                characters=row.get("characters") or [],
+                episode_id=row.get("episode_id"),
+            )
+            have.add(fact)
+
     def add_memory(
         self,
         fact: str,
@@ -504,3 +524,8 @@ class Memory:
                     (f"%{thread}%",),
                 )
             self.conn.commit()
+        try:
+            from orchestrator import archive
+            archive.upsert_memories(self.list_memories(limit=200))
+        except Exception:
+            pass
