@@ -3,3 +3,4 @@ uvicorn
 pydantic
 google-genai
 httpx
+psycopg[binary]
