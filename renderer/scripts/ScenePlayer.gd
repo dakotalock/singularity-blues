@@ -112,11 +112,15 @@ func _web_boot() -> void:
 
 
 func _web_poll() -> void:
+	if _playing:
+		return
 	if _web_polling:
 		return
 	_web_polling = true
 	var data := await _http_json(_api_url("/now-playing"))
 	_web_polling = false
+	if _playing:
+		return
 	if data.is_empty():
 		return
 	var beats: Array = data.get("beats", [])
@@ -459,7 +463,8 @@ func _process(delta: float) -> void:
 		return
 	_poll = 0.0
 	if _is_web():
-		_web_poll()
+		if not _playing:
+			_web_poll()
 		return
 	if _playing:
 		return
