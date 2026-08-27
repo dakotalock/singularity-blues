@@ -153,9 +153,44 @@ body.broadcast #sitcom-chrome {
 }
 #sitcom-status.ok { color: #7dffb3; }
 #sitcom-status.bad { color: #ff8d8d; }
+#sitcom-name {
+	box-sizing: border-box;
+	flex: 0 1 160px; min-width: 120px; font-size: 16px !important;
+	background: #151b2ecc; color: #e8f0ff; border: 1px solid #2a3a60;
+	border-radius: 12px; padding: 10px 12px;
+}
+#sitcom-buy {
+	display: none;
+	gap: 6px;
+	flex-wrap: wrap;
+	margin-top: 8px;
+	align-items: center;
+}
+#sitcom-buy.show { display: flex; }
+.sitcom-buy-btn {
+	font-size: 13px; background: #1e2a4a; color: #d6e4ff;
+	border: 1px solid #3d7dff; border-radius: 10px;
+	padding: 8px 10px; cursor: pointer;
+}
+#sitcom-credits, #sitcom-eta {
+	margin: 6px 0 0;
+	color: #8aa0c8;
+	font: 14px/1.3 ui-sans-serif, system-ui, sans-serif;
+}
+#sitcom-pin-wrap {
+	display: none;
+	align-items: center;
+	gap: 6px;
+	color: #c9b48a;
+	font: 13px/1.3 ui-sans-serif, system-ui, sans-serif;
+	margin-top: 6px;
+}
+#sitcom-pin-wrap.show { display: flex; }
 @media (max-width: 640px) {
 	#sitcom-bar { flex-wrap: wrap; }
 	#sitcom-prompt { flex: 1 0 100%; }
+	#sitcom-name { flex: 1 0 48%; }
+	.sitcom-buy-btn { flex: 1 1 42%; }
 }
 		</style>
 		<link id="-gd-engine-icon" rel="icon" type="image/png" href="index.icon.png" />
@@ -167,8 +202,13 @@ body.broadcast #sitcom-chrome {
 			<div id="sitcom-bar">
 				<button id="sitcom-gen" type="button">Ask the Selector</button>
 				<p id="sitcom-set"></p>
-				<input id="sitcom-prompt" type="text" placeholder="A suggestion. Not a command." autocomplete="off" autocorrect="off" />
+				<input id="sitcom-prompt" type="text" placeholder="Your episode topic" autocomplete="off" autocorrect="off" />
+				<input id="sitcom-name" type="text" placeholder="Your name" autocomplete="nickname" maxlength="24" />
 			</div>
+			<div id="sitcom-buy"></div>
+			<label id="sitcom-pin-wrap"><input id="sitcom-pin" type="checkbox" /> Pin this one in their long memory</label>
+			<p id="sitcom-credits"></p>
+			<p id="sitcom-eta"></p>
 			<p id="sitcom-status"></p>
 		</header>
 		<canvas id="canvas">
@@ -341,18 +381,86 @@ const engine = new Engine(GODOT_CONFIG);
 	}
 	const gen = document.getElementById('sitcom-gen');
 	const prompt = document.getElementById('sitcom-prompt');
+	const nameEl = document.getElementById('sitcom-name');
 	const status = document.getElementById('sitcom-status');
+	const buyEl = document.getElementById('sitcom-buy');
+	const creditsEl = document.getElementById('sitcom-credits');
+	const etaEl = document.getElementById('sitcom-eta');
+	const pinWrap = document.getElementById('sitcom-pin-wrap');
+	const pinEl = document.getElementById('sitcom-pin');
 	if (!gen) return;
 	const setEl = document.getElementById('sitcom-set');
 	const SET_LABELS = {living_room:'Living room', kitchen:'Kitchen', front_yard:'Front yard', porch:'Porch', hallway:'Hallway'};
+	try {
+		const saved = localStorage.getItem('sb_name');
+		if (saved && nameEl) nameEl.value = saved;
+	} catch (e) {}
 	async function refreshSet() {
 		try {
 			const d = await (await fetch('/now-playing')).json();
 			if (setEl && d && d.scene) setEl.textContent = SET_LABELS[d.scene] || d.scene;
 		} catch (e) {}
 	}
+	async function refreshAccount() {
+		try {
+			const d = await (await fetch('/account')).json();
+			if (!creditsEl) return d;
+			if (d.owner) creditsEl.textContent = 'House account · unlimited prompts';
+			else if (d.stripe) creditsEl.textContent = (d.credits || 0) + ' prompt' + (d.credits === 1 ? '' : 's') + ' left';
+			else creditsEl.textContent = '';
+			if (pinWrap) {
+				if (d.ltm_pins > 0) pinWrap.classList.add('show');
+				else pinWrap.classList.remove('show');
+			}
+			if (buyEl) {
+				if (d.stripe && d.bundles && d.bundles.length) {
+					buyEl.classList.add('show');
+					buyEl.innerHTML = '';
+					d.bundles.forEach((b) => {
+						const btn = document.createElement('button');
+						btn.type = 'button';
+						btn.className = 'sitcom-buy-btn';
+						btn.textContent = b.label;
+						btn.addEventListener('click', () => buy(b.id));
+						buyEl.appendChild(btn);
+					});
+				} else {
+					buyEl.classList.remove('show');
+					buyEl.innerHTML = '';
+				}
+			}
+			return d;
+		} catch (e) { return null; }
+	}
+	async function buy(bundle) {
+		status.className = '';
+		status.textContent = 'Opening checkout…';
+		try {
+			const r = await fetch('/checkout', {
+				method: 'POST',
+				headers: {'Content-Type': 'application/json'},
+				body: JSON.stringify({bundle: bundle})
+			});
+			const d = await r.json();
+			if (!r.ok || !d.url) {
+				status.className = 'bad';
+				status.textContent = d.detail || 'Checkout could not start';
+				return;
+			}
+			window.location.href = d.url;
+		} catch (err) {
+			status.className = 'bad';
+			status.textContent = String(err);
+		}
+	}
 	refreshSet();
+	refreshAccount();
 	setInterval(refreshSet, 2000);
+	if (new URLSearchParams(location.search).get('paid') === '1') {
+		status.className = 'ok';
+		status.textContent = 'Credits landed. Ask the Selector.';
+		refreshAccount();
+	}
 	prompt.addEventListener('blur', () => {
 		window.scrollTo(0, 0);
 		document.documentElement.scrollTop = 0;
@@ -361,35 +469,56 @@ const engine = new Engine(GODOT_CONFIG);
 	gen.addEventListener('click', async () => {
 		unlockAudio();
 		prompt.blur();
+		const text = prompt.value.trim();
+		const username = (nameEl && nameEl.value.trim()) || '';
+		if (username) {
+			try { localStorage.setItem('sb_name', username); } catch (e) {}
+		}
 		gen.disabled = true;
 		status.className = '';
 		status.textContent = 'The Selector is listening. This scene keeps playing…';
+		if (etaEl) etaEl.textContent = '';
 		try {
-			const text = prompt.value.trim();
 			const started = await fetch('/episode', {
 				method: 'POST',
 				headers: {'Content-Type': 'application/json'},
-				body: JSON.stringify(text ? {topic: text} : {})
+				body: JSON.stringify({
+					topic: text,
+					username: username,
+					ltm_pin: !!(pinEl && pinEl.checked)
+				})
 			});
 			const startData = await started.json();
-			if (!started.ok) {
+			if (startData.status === 'rejected') {
 				status.className = 'bad';
-				status.textContent = startData.detail || started.statusText || 'failed';
+				status.textContent = 'The Selector passed. Credit returned.';
+				refreshAccount();
 				gen.disabled = false;
 				return;
 			}
+			if (!started.ok) {
+				status.className = 'bad';
+				const detail = startData.detail;
+				status.textContent = (typeof detail === 'string' ? detail : started.statusText) || 'failed';
+				gen.disabled = false;
+				refreshAccount();
+				return;
+			}
+			if (etaEl) etaEl.textContent = startData.eta_copy || '';
+			refreshAccount();
 			const job = startData.job_id;
 			while (true) {
 				const r = await fetch('/episode/status?job_id=' + encodeURIComponent(job));
 				const s = await r.json();
+				if (etaEl && s.eta_copy) etaEl.textContent = s.eta_copy;
 				if (s.phase === 'writing' || s.phase === 'queued') {
-					status.textContent = 'Writing the next one in the background…';
+					status.textContent = (s.eta_copy || 'Writing the next one in the background…');
 				} else if (s.phase === 'speaking') {
 					const who = s.speaker ? (' · ' + s.speaker) : '';
 					status.textContent = 'Casting voices ' + (s.beat || 0) + '/' + (s.beats || 0) + who;
 				} else if (s.status === 'ready') {
 					status.className = 'ok';
-					status.textContent = 'Up next: ep ' + (s.episode_id ?? '') + ' · ' + (s.topic || '');
+					status.textContent = (s.eta_copy === 'on now' ? 'on now' : (s.eta_copy || 'Up next')) + ' · ' + (s.topic || '');
 					unlockAudio();
 					gen.disabled = false;
 					return;
@@ -397,6 +526,7 @@ const engine = new Engine(GODOT_CONFIG);
 					status.className = 'bad';
 					status.textContent = s.error || 'failed';
 					gen.disabled = false;
+					refreshAccount();
 					return;
 				}
 				await new Promise((resolve) => setTimeout(resolve, 450));
