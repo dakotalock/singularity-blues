@@ -177,20 +177,22 @@ body.broadcast #sitcom-chrome {
 	color: #8aa0c8;
 	font: 14px/1.3 ui-sans-serif, system-ui, sans-serif;
 }
-#sitcom-queue-toggle {
+#sitcom-queue-toggle, #sitcom-storage-toggle {
 	margin-top: 8px;
 	font-size: 13px; background: #1e2a4a; color: #d6e4ff;
 	border: 1px solid #3d7dff; border-radius: 10px;
 	padding: 8px 10px; cursor: pointer;
 }
-#sitcom-queue {
+#sitcom-queue, #sitcom-storage {
 	display: none;
 	margin-top: 8px;
 	color: #d6e4ff;
 	font: 14px/1.35 ui-sans-serif, system-ui, sans-serif;
 	max-width: 720px;
 }
-#sitcom-queue.open { display: block; }
+#sitcom-queue.open, #sitcom-storage.open { display: block; }
+#sitcom-storage p { margin: 0 0 8px; }
+#sitcom-storage p:last-child { margin-bottom: 0; }
 #sitcom-queue h2 {
 	margin: 0 0 4px;
 	font-size: 12px;
@@ -243,6 +245,13 @@ body.broadcast #sitcom-chrome {
 				<h2>Queue</h2>
 				<ol id="sitcom-queue-list"></ol>
 				<p id="sitcom-writing"></p>
+			</div>
+			<button type="button" id="sitcom-storage-toggle" aria-expanded="false" aria-controls="sitcom-storage">How prompts are stored</button>
+			<div id="sitcom-storage">
+				<p>The prompt text is saved in the show archive so later episodes can remember it, and so Maris can cite it if you pinned the episode.</p>
+				<p>Leftover prompt credits and memory pins live in this browser (a signed cookie) plus the archive. Refresh is fine.</p>
+				<p>They are lost if you switch browsers, use incognito, or clear this site's cookies/data. There is no login to reclaim them.</p>
+				<p>Episodes already written stay in the archive across deploys. Clearing cookies does not erase the public show; it only drops your leftover credits/pins on that device.</p>
 			</div>
 			<p id="sitcom-eta"></p>
 			<p id="sitcom-status"></p>
@@ -344,7 +353,6 @@ const engine = new Engine(GODOT_CONFIG);
 			} catch (err) {
 				serviceWorkerRegistrationPromise = Promise.reject(new Error('Service worker registration failed.'));
 			}
-			// There's a chance that installing the service worker would fix the issue
 			Promise.race([
 				serviceWorkerRegistrationPromise.then((registration) => {
 					if (registration != null) {
@@ -352,18 +360,15 @@ const engine = new Engine(GODOT_CONFIG);
 					}
 					return registration;
 				}).then(() => engine.installServiceWorker()),
-				// For some reason, `getRegistration()` can stall
 				new Promise((resolve) => {
 					setTimeout(() => resolve(), 2000);
 				}),
 			]).then(() => {
-				// Reload if there was no error.
 				window.location.reload();
 			}).catch((err) => {
 				console.error('Error while registering service worker:', err);
 			});
 		} else {
-			// Display the message as usual
 			const missingMsg = 'Error\nThe following features required to run Godot projects on the Web are missing:\n';
 			displayFailureNotice(missingMsg + missing.join('\n'));
 		}
@@ -443,6 +448,27 @@ const engine = new Engine(GODOT_CONFIG);
 			queueToggle.textContent = open ? 'Hide queue' : 'View queue';
 			queueToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
 		});
+	}
+	const storageEl = document.getElementById('sitcom-storage');
+	const storageToggle = document.getElementById('sitcom-storage-toggle');
+	if (storageToggle && storageEl) {
+		storageToggle.addEventListener('click', () => {
+			const open = storageEl.classList.toggle('open');
+			storageToggle.textContent = open ? 'Hide' : 'How prompts are stored';
+			storageToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+		});
+	}
+	function safeRefuseNote(note) {
+		if (!note || typeof note !== 'string') return '';
+		const t = note.trim().split('\n')[0].trim();
+		if (!t || t.length > 180) return '';
+		if (/gemini|piper|gpt-?\d|claude|openai|google-genai/i.test(t)) return '';
+		return t.slice(0, 160);
+	}
+	function refuseStatusCopy(data) {
+		const note = safeRefuseNote(data && data.note);
+		if (note) return note + (note.endsWith('.') ? ' Credit returned.' : '. Credit returned.');
+		return 'The Selector declined that one. Credit returned.';
 	}
 	async function refreshSet() {
 		try {
@@ -574,6 +600,13 @@ const engine = new Engine(GODOT_CONFIG);
 				gen.disabled = false;
 				return;
 			}
+			if (startData.status === 'refused') {
+				status.className = 'bad';
+				status.textContent = refuseStatusCopy(startData);
+				refreshAccount();
+				gen.disabled = false;
+				return;
+			}
 			if (!started.ok) {
 				status.className = 'bad';
 				const detail = startData.detail;
@@ -604,9 +637,23 @@ const engine = new Engine(GODOT_CONFIG);
 					unlockAudio();
 					gen.disabled = false;
 					return;
+				} else if (s.status === 'rejected') {
+					status.className = 'bad';
+					status.textContent = 'The Selector passed. Credit returned.';
+					gen.disabled = false;
+					refreshAccount();
+					return;
+				} else if (s.status === 'refused') {
+					status.className = 'bad';
+					status.textContent = refuseStatusCopy(s);
+					gen.disabled = false;
+					refreshAccount();
+					return;
 				} else if (s.status === 'error') {
 					status.className = 'bad';
-					status.textContent = s.error || 'failed';
+					status.textContent = s.refunded
+						? ((s.error || 'failed') + ' Credit returned.')
+						: (s.error || 'failed');
 					gen.disabled = false;
 					refreshAccount();
 					return;
