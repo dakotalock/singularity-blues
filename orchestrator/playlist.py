@@ -294,10 +294,10 @@ def pin(packet: dict[str, Any]) -> dict[str, Any]:
             state["queued"] = queued
             _save(state)
             try:
-                    from orchestrator import archive
-                    archive.upsert_episode(stored)
+                from orchestrator import archive
+                archive.upsert_episode(stored)
             except Exception:
-                    pass
+                pass
             return _serve_packet(state)
         state["index"] = new_idx
         state["airing"] = int(state["airing"] or 0) + 1
