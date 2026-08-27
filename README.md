@@ -30,17 +30,14 @@ cp .env.example .env
 # edit secrets locally (never commit .env)
 ```
 
-Models (when a key is present):
-
-- `GEMINI_MODEL=gemini-2.5-flash-lite` — selector + memory condenser
-- `GEMINI_WRITER_MODEL=gemini-2.5-flash` — scene writer
+Models (when a key is present): cascade `gemini-3.7-flash`, `gemini-3.6-flash`, `gemini-2.5-flash`. Override with `GEMINI_MODELS` (comma-separated). Do not pin via `GEMINI_WRITER_MODEL` / `GEMINI_MODEL`.
 
 ## Env vars
 
 | Variable | What it is |
 | --- | --- |
 | `GEMINI_API_KEY` | Writer key. Leave empty for mock writer. |
-| `GEMINI_MODEL` / `GEMINI_WRITER_MODEL` | Model ids (defaults above). |
+| `GEMINI_MODELS` | Comma-separated writer cascade. Defaults in code. |
 | `DATABASE_URL` | Postgres. Credits and archive live in schema `blues`. SQLite is the local fallback. |
 | `STRIPE_SECRET_KEY` | Stripe secret. If unset, local generate and the owner unlock still work (no payment). |
 | `STRIPE_WEBHOOK_SECRET` | Webhook signing secret for `POST /stripe/webhook`. |
@@ -63,7 +60,7 @@ Hosted Stripe Checkout Sessions (`POST /checkout`, webhook `POST /stripe/webhook
 - $10 → 12 credits + 1 LTM pin
 - $20 → 30 credits + 3 LTM pins
 
-`POST /episode` spends 1 credit. Hard-rejects (injection, scream-spam, garbage, CSAM-adjacent, too short) refund **the credit**, never Stripe money. A refused LTM pin is refunded; the prompt credit stays spent. Buyer identity is a signed cookie.
+`POST /episode` spends 1 credit. Hard-rejects (injection, scream-spam, garbage, CSAM-adjacent, too short) refund **the credit**, never Stripe money. If the writer refuses, credit and pin are refunded. Buyer identity is a signed cookie.
 
 ## Phone test (one button)
 
