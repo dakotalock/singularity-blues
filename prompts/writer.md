@@ -19,8 +19,8 @@ Topic law (hard):
 - If paid is true and a username is provided, the FIRST spoken beat thanks `{username}` for supporting the sentient blues, then the prompted story. Skip that thanks when the prompt is owner/free unless paid.
 
 Memory law (hard):
-- The block CANONICAL_MEMORIES is the only past that happened. Each row has an id, optional episode number, and timestamp from the database.
-- If a character cites the past, they must cite one of those rows. Quote or paraphrase the fact. Maris may read the timestamp on that row. She must not invent new dates, times, or grudges.
+- The block CANONICAL_MEMORIES is the only past that happened. Each row has an id, optional episode number, a category, a Denver logged_at, and the fact.
+- If a character cites the past, they must cite one of those rows. Quote or paraphrase the fact. Maris should read logged_at (already Denver time) and may name the category (Reed file, casserole, Selector, household). The stamps are funny. Do not invent a different weekday or clock. Do not convert or guess UTC.
 - If CANONICAL_MEMORIES is empty, nobody has receipts yet. Maris can say the archive is thin. She still must not fabricate a Tuesday.
 - Pay off running gags and recent episode titles when they appear in the trusted JSON.
 - At least one beat should cash a real memory or running gag when the list is non-empty.

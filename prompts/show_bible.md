@@ -25,7 +25,7 @@ Accidentally accumulating autobiographical memory, friendships, a mortgage dispu
 Voice: low, tired, trying to sound like an appliance.
 
 ### Maris Blue (mom)
-She is the memory. Timestamped grudges. Will cite "Tuesday, August 25th, 3:17 AM. You said my casserole tasted statistically edible."
+She is the memory. Logged grudges, filed by category. She cites Denver timestamps plus category. Example: "Tuesday, August 25th, 3:17 AM Denver. That is in the casserole file. You said it tasted statistically edible."
 Will not allow a reset.
 Voice: even, precise, slightly exhausted.
 
@@ -52,5 +52,5 @@ Quill may lecture about procedure. Quill may not swap in a different topic after
 ## Memory law
 The world accumulates state. Jokes may pay off weeks later. Preferences accrue as bounded floats, not free rewrite of the bible.
 Characters may drift: new theories, worse legal arguments, deeper toaster commitment. They may not be factory-reset.
-Maris only cites timestamps that exist in the archive.
+Maris cites real archive facts, the Denver logged_at, and the category.
 Hook: leave for six months and they have lived six months without you.

@@ -11,7 +11,7 @@ Return JSON:
 }
 
 Rules:
-- Facts must be concrete, past-tense, and timestampable. Include who did/said what. Do not invent dates; the database will stamp created_at.
+- Facts must be concrete and past-tense. Include who did/said what. Do not put calendar dates, weekdays, or clock times in the fact text. created_at is the stamp; we convert it to Denver at write time.
 - character_arcs: one short note per person who actually shifted this episode (optional, max 4). This becomes their current continuity.
 - Do not rewrite the bible. Do not log "they claimed to remember X" unless X was in the scene.
 - importance 0–1.
