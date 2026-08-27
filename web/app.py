@@ -17,6 +17,8 @@ from pydantic import BaseModel, Field
 
 from orchestrator import DATA_DIR, NOW_PLAYING_PATH, ROOT, TTS_DIR, load_dotenv
 from orchestrator import archive
+from orchestrator import r2
+from orchestrator import voice_queue
 from orchestrator.billing import create_checkout_session, handle_webhook, publishable_key
 from orchestrator.credits import (
     BUNDLES,
@@ -202,6 +204,8 @@ def _startup() -> None:
     assembler = ROOT / "tools" / "assemble_web_engine.py"
     if assembler.is_file():
         subprocess.run([sys.executable, str(assembler)], check=False)
+
+    voice_queue.start()
 
     def _boot_house() -> None:
         try:
@@ -540,12 +544,21 @@ def memories() -> dict:
 
 @app.get("/data/tts/{filename}")
 def tts_wav(filename: str):
-    if "/" in filename or "\\" in filename or filename.startswith("."):
+    name = Path(filename).name
+    if not name or name == "..":
         raise HTTPException(status_code=400, detail="bad filename")
-    path = TTS_DIR / filename
-    if not path.is_file():
+    path = TTS_DIR / name
+    if path.is_file():
+        return FileResponse(path, media_type="audio/wav", filename=name)
+    blob = r2.get_bytes(name)
+    if not blob:
         raise HTTPException(status_code=404, detail="wav missing")
-    return FileResponse(path, media_type="audio/wav", filename=filename)
+    try:
+        TTS_DIR.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(blob)
+        return FileResponse(path, media_type="audio/wav", filename=name)
+    except Exception:
+        return Response(content=blob, media_type="audio/wav")
 
 
 @app.get("/stage/index.wasm")
