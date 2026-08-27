@@ -130,3 +130,72 @@ def test_recent_episodes_include_writer_set_history(tmp_path):
     )
     recent = mem.retrieve("porch")["recent_episodes"]
     assert recent[0]["scene"] == "porch"
+
+def test_insert_episode_uses_archive_id_not_sqlite_restart(tmp_path, monkeypatch):
+    """Durable ids come from archive.next_episode_id; sqlite must not restart at 1."""
+    from orchestrator.memory import Memory
+
+    monkeypatch.setattr("orchestrator.archive.available", lambda: True)
+    monkeypatch.setattr("orchestrator.archive.next_episode_id", lambda: 42)
+    mem = Memory(tmp_path / "t.db")
+    eid = mem.insert_episode(
+        "already had forty-one episodes",
+        "viewer",
+        {"scene": "living_room", "topic": "already had forty-one episodes", "beats": []},
+    )
+    assert eid == 42
+    rows = mem.list_episodes(limit=10)
+    assert rows[0]["id"] == 42
+    monkeypatch.setattr("orchestrator.archive.next_episode_id", lambda: 43)
+    eid2 = mem.insert_episode(
+        "next",
+        "viewer",
+        {"scene": "porch", "topic": "next", "beats": []},
+    )
+    assert eid2 == 43
+    ids = {r["id"] for r in mem.list_episodes(limit=10)}
+    assert ids == {42, 43}
+    assert 1 not in ids
+
+
+def test_restore_from_archive_upserts_episodes(tmp_path, monkeypatch):
+    from orchestrator.memory import Memory
+
+    mem = Memory(tmp_path / "t.db")
+    scenes = [
+        {
+            "id": 7,
+            "scene": {
+                "topic": "porch lantern",
+                "source": "viewer",
+                "scene": "porch",
+                "beats": [{"speaker": "reed", "line": "hi"}],
+            },
+        },
+        {
+            "id": 12,
+            "scene": {
+                "topic": "toaster application",
+                "source": "autonomous",
+                "scene": "living_room",
+                "beats": [{"speaker": "maris", "line": "no"}],
+            },
+        },
+    ]
+    monkeypatch.setattr("orchestrator.archive.list_scenes", lambda: scenes)
+    monkeypatch.setattr("orchestrator.archive.list_memories", lambda: [])
+    mem.restore_from_archive()
+    rows = mem.list_episodes(limit=50)
+    by_id = {r["id"]: r for r in rows}
+    assert set(by_id) == {7, 12}
+    assert by_id[7]["topic"] == "porch lantern"
+    assert by_id[7]["source"] == "viewer"
+    assert by_id[7]["scene"] == "porch"
+    assert by_id[12]["topic"] == "toaster application"
+    # upsert, not duplicate
+    scenes[0]["scene"]["topic"] = "porch lantern, updated"
+    monkeypatch.setattr("orchestrator.archive.list_scenes", lambda: scenes)
+    mem.restore_from_archive()
+    rows2 = mem.list_episodes(limit=50)
+    assert len(rows2) == 2
+    assert next(r for r in rows2 if r["id"] == 7)["topic"] == "porch lantern, updated"
