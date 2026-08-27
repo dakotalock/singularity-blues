@@ -200,19 +200,32 @@ body.player-expanded #player-shell {
 #stream-bug {
 	position: absolute;
 	z-index: 34;
-	top: max(12px, env(safe-area-inset-top, 0px));
-	right: max(14px, env(safe-area-inset-right, 0px));
+	top: 11.5%;
+	left: max(14px, env(safe-area-inset-left, 0px));
+	right: auto;
+	bottom: auto;
 	margin: 0;
 	padding: 0;
 	pointer-events: none;
 	user-select: none;
-	font: 600 12px/1.2 ui-sans-serif, system-ui, sans-serif;
-	letter-spacing: 0.06em;
-	color: rgba(255,255,255,0.78);
-	text-shadow: 0 1px 2px rgba(0,0,0,.85), 0 0 10px rgba(0,0,0,.4);
+	font: 600 10px/1.25 ui-sans-serif, system-ui, sans-serif;
+	letter-spacing: 0.04em;
+	color: rgba(255,255,255,0.72);
+	text-shadow: 0 1px 2px rgba(0,0,0,.85), 0 0 8px rgba(0,0,0,.4);
+	text-align: left;
+}
+#stream-bug span {
+	display: block;
+	font-weight: 500;
+	font-size: 8px;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+	color: rgba(255,255,255,0.55);
+	margin-bottom: 2px;
 }
 @media (max-width: 640px) {
-	#stream-bug { font-size: 11px; }
+	#stream-bug { font-size: 9px; }
+	#stream-bug span { font-size: 7px; }
 }
 
 
@@ -365,7 +378,7 @@ body.player-expanded #player-shell {
 				<button type="button" id="sitcom-volume" class="player-control" data-state="muted" aria-pressed="false" aria-label="Unmute the show" title="Unmute the show">🔇</button>
 				<button type="button" id="sitcom-fullscreen" class="player-control" aria-pressed="false" aria-label="Full screen" title="Full screen">⛶</button>
 			</div>
-			<p id="stream-bug">singularity-blues.onrender.com</p>
+			<p id="stream-bug"><span>Prompt the next episode</span>singularity-blues.onrender.com</p>
 			<div id="status">
 				<img id="status-splash" class="show-image--true fullsize--true use-filter--true" src="index.png" alt="">
 				<progress id="status-progress"></progress>
