@@ -107,6 +107,10 @@ def test_random_reruns_prefer_non_seed(tmp_path, monkeypatch):
 
 def test_boot_picks_random_non_seed(tmp_path, monkeypatch):
     pl = _reset(monkeypatch, tmp_path)
+    monkeypatch.setattr("orchestrator.archive.init", lambda: False)
+    monkeypatch.setattr("orchestrator.archive.list_voiced_packets", lambda: [])
+    monkeypatch.setattr("orchestrator.archive.list_scenes", lambda: [])
+    monkeypatch.setattr("orchestrator.archive.voiced_ids", lambda: set())
     pl.pin(_packet(tmp_path, 1, "seed ep", source="seed"))
     pl.pin(_packet(tmp_path, 2, "viewer a", source="viewer"))
     pl.pin(_packet(tmp_path, 3, "viewer b", source="autonomous"))
@@ -146,23 +150,106 @@ def test_board_lists_queued_titles(tmp_path, monkeypatch):
     ]
 
 
+def _drain_voice_queue(timeout=8.0):
+    import orchestrator.voice_queue as vq
+
+    vq.start()
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        if getattr(vq._jobs, "unfinished_tasks", 0) == 0:
+            return
+        time.sleep(0.02)
+    remaining = getattr(vq._jobs, "unfinished_tasks", None)
+    raise AssertionError(f"voice queue still has unfinished_tasks={remaining}")
+
+
+def test_packet_wav_ok_without_local_files(tmp_path, monkeypatch):
+    pl = _reset(monkeypatch, tmp_path)
+    packet = {
+        "episode_id": 1,
+        "beats": [
+            {"speaker": "reed", "line": "a", "audio": "data/tts/ep0001_00_reed.wav", "duration_sec": 1.0},
+            {"speaker": "maris", "line": "b", "audio": "data/tts/ep0001_01_maris.wav", "duration_sec": 1.0},
+            {"speaker": "jinx", "line": "c", "audio": "data/tts/ep0001_02_jinx.wav", "duration_sec": 1.0},
+            {"speaker": "quill", "line": "d", "audio": "data/tts/ep0001_03_quill.wav", "duration_sec": 1.0},
+        ],
+    }
+    assert pl._packet_wav_ok(packet) is True
+    empty = {
+        "episode_id": 1,
+        "beats": [{**b, "audio": ""} for b in packet["beats"]],
+    }
+    assert pl._packet_wav_ok(empty) is False
+    short = {"episode_id": 1, "beats": packet["beats"][:3]}
+    assert pl._packet_wav_ok(short) is False
+
+
+class _FakeMem:
+    def restore_from_archive(self):
+        return None
+
+    def insert_episode(self, *args, **kwargs):
+        return 99
+
+
 def test_ingest_airs_first_then_voices_the_rest(tmp_path, monkeypatch):
     pl = _reset(monkeypatch, tmp_path)
     calls = []
 
-    def fake_render(scene, eid):
+    def fake_render(scene, eid, progress=None, out_dir=None):
         calls.append(int(eid))
         return _packet(tmp_path, int(eid), scene.get("topic") or f"ep {eid}", source="viewer")
 
     monkeypatch.setattr("orchestrator.tts.render", fake_render)
-    items = [
+    monkeypatch.setattr("orchestrator.archive.init", lambda: True)
+    monkeypatch.setattr("orchestrator.archive.list_voiced_packets", lambda: [])
+    monkeypatch.setattr("orchestrator.archive.voiced_ids", lambda: set())
+    monkeypatch.setattr("orchestrator.archive.upsert_episode", lambda p: None)
+    monkeypatch.setattr("orchestrator.archive.upsert_manifest", lambda p: None)
+    scenes = [
         {"id": i, "scene": {"topic": f"ep {i}", "source": "viewer", "beats": [{"speaker": "reed", "line": "hi"}]}}
         for i in range(1, 9)
     ]
-    pl._ingest_archived(items)
+    monkeypatch.setattr("orchestrator.archive.list_scenes", lambda: scenes)
+    served = pl.ensure_voiced_boot(_FakeMem())
+    _drain_voice_queue()
     assert calls == [8, 7, 6, 5, 4, 3, 2, 1]
     topics = [p["topic"] for p in pl._state["packets"]]
     assert "ep 8" in topics
     assert "ep 1" in topics
-    served = pl.current()
+    assert served.get("beats")
+    assert served.get("show_episode_id") == 8
+
+
+def test_manifests_restore_without_piper(tmp_path, monkeypatch):
+    pl = _reset(monkeypatch, tmp_path)
+    calls = []
+
+    def fake_render(scene, eid, progress=None, out_dir=None):
+        calls.append(int(eid))
+        return _packet(tmp_path, int(eid), scene.get("topic") or f"ep {eid}", source="viewer")
+
+    voiced = [
+        _packet(tmp_path, 8, "ep 8", source="viewer"),
+        _packet(tmp_path, 3, "ep 3", source="viewer"),
+    ]
+    monkeypatch.setattr("orchestrator.tts.render", fake_render)
+    monkeypatch.setattr("orchestrator.archive.init", lambda: True)
+    monkeypatch.setattr("orchestrator.archive.list_voiced_packets", lambda: voiced)
+    monkeypatch.setattr("orchestrator.archive.voiced_ids", lambda: {8, 3})
+    monkeypatch.setattr("orchestrator.archive.upsert_episode", lambda p: None)
+    monkeypatch.setattr("orchestrator.archive.upsert_manifest", lambda p: None)
+    scenes = [
+        {"id": i, "scene": {"topic": f"ep {i}", "source": "viewer", "beats": [{"speaker": "reed", "line": "hi"}]}}
+        for i in range(1, 9)
+    ]
+    monkeypatch.setattr("orchestrator.archive.list_scenes", lambda: scenes)
+    served = pl.ensure_voiced_boot(_FakeMem())
+    assert 8 not in calls
+    assert 3 not in calls
+    _drain_voice_queue()
+    assert set(calls) == {1, 2, 4, 5, 6, 7}
+    topics = [p["topic"] for p in pl._state["packets"]]
+    assert "ep 8" in topics
+    assert "ep 3" in topics
     assert served.get("beats")
