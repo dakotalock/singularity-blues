@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from orchestrator import DATA_DIR, DB_PATH
+from orchestrator.moderation import scrub_slurs
 from orchestrator.schemas import Condensation
 
 _FTS_TOKEN = re.compile(r"[A-Za-z0-9]{3,}")
@@ -347,6 +348,18 @@ class Memory:
             self.conn.commit()
             return int(cur.lastrowid)
 
+    def pin_episode(self, episode_id: int, importance: float = 0.95) -> None:
+        """Mark this episode's memories as high-importance (weighted LTM pin)."""
+        if not episode_id:
+            return
+        floor = max(0.0, min(1.0, float(importance)))
+        with self._lock:
+            self.conn.execute(
+                "UPDATE memories SET importance = MAX(importance, ?) WHERE episode_id = ?",
+                (floor, int(episode_id)),
+            )
+            self.conn.commit()
+
     def list_episodes(self, limit: int = 20) -> list[dict[str, Any]]:
         with self._lock:
             rows = self._rows(
@@ -438,7 +451,7 @@ class Memory:
                     """,
                     (
                         mem.character,
-                        mem.fact,
+                        scrub_slurs(mem.fact),
                         _clamp(mem.importance),
                         json.dumps(mem.characters or ([mem.character] if mem.character else [])),
                         episode_id,
