@@ -289,8 +289,11 @@ def pin(packet: dict[str, Any]) -> dict[str, Any]:
         return _publish(state)
 
 
-def _ingest_archived(items: list[dict[str, Any]]) -> None:
-    """Re-voice stored scripts into the local playlist. No writer."""
+BOOT_VOICE_LIMIT = 3
+
+
+def _ingest_archived(items: list[dict[str, Any]], *, limit: int = BOOT_VOICE_LIMIT) -> None:
+    """Re-voice a few recent scripts so the stage can start. Do not wait on the whole archive."""
     if not items:
         return
     from orchestrator.tts import render as render_scene
@@ -298,24 +301,29 @@ def _ingest_archived(items: list[dict[str, Any]]) -> None:
     with _lock:
         state = _load()
         have = {p.get("episode_id") for p in state["packets"]}
-    fresh: list[dict[str, Any]] = []
-    for item in items:
+    voiced = 0
+    published = False
+    for item in reversed(list(items)):
+        if voiced >= max(1, int(limit)):
+            break
         eid = item.get("id")
         scene = item.get("scene") or {}
         if eid in have or not scene.get("beats"):
             continue
         packet = render_scene(scene, int(eid))
         packet["source"] = scene.get("source") or "viewer"
-        fresh.append(packet)
-    if not fresh:
-        return
-    with _lock:
-        state = _load()
-        have = {p.get("episode_id") for p in state["packets"]}
-        for packet in fresh:
-            if packet.get("episode_id") not in have:
-                state["packets"].append(packet)
-        _save(state)
+        voiced += 1
+        have.add(eid)
+        if not published:
+            pin(packet)
+            published = True
+        else:
+            with _lock:
+                state = _load()
+                ids = {p.get("episode_id") for p in state["packets"]}
+                if packet.get("episode_id") not in ids:
+                    state["packets"].append(packet)
+                    _save(state)
 
 
 def ensure_voiced_boot(mem) -> dict[str, Any]:

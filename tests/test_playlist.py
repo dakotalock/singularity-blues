@@ -144,3 +144,24 @@ def test_board_lists_queued_titles(tmp_path, monkeypatch):
         "Programming tips by Rook",
         "Reviewer 2 by GPT SOL",
     ]
+
+
+def test_ingest_voices_newest_three_then_airs(tmp_path, monkeypatch):
+    pl = _reset(monkeypatch, tmp_path)
+    calls = []
+
+    def fake_render(scene, eid):
+        calls.append(int(eid))
+        return _packet(tmp_path, int(eid), scene.get("topic") or f"ep {eid}", source="viewer")
+
+    monkeypatch.setattr("orchestrator.tts.render", fake_render)
+    items = [
+        {"id": i, "scene": {"topic": f"ep {i}", "source": "viewer", "beats": [{"speaker": "reed", "line": "hi"}]}}
+        for i in range(1, 9)
+    ]
+    pl._ingest_archived(items)
+    assert calls == [8, 7, 6]
+    topics = [p["topic"] for p in pl._state["packets"]]
+    assert "ep 8" in topics
+    served = pl.current()
+    assert served.get("beats")
