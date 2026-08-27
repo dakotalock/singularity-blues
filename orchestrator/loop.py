@@ -9,7 +9,7 @@ import time
 from typing import Any
 
 from orchestrator import DATA_DIR, NOW_PLAYING_PATH, ROOT, load_dotenv
-from orchestrator.gemini import finalize_scene, get_condenser, get_writer, load_bible
+from orchestrator.gemini import PromptRefused, finalize_scene, get_condenser, get_writer, load_bible
 from orchestrator.memory import Memory
 from orchestrator.moderation import episode_title, prefilter, scrub_slurs
 from orchestrator.schemas import validate_scene
@@ -100,6 +100,8 @@ def run_episode(
         refuse_reason=refuse_reason,
         title=heading,
     )
+    if isinstance(scene, dict) and scene.get("refuse"):
+        raise PromptRefused(scene.get("note") or "")
     scene = finalize_scene(scene, title=heading, source=source, username=username, paid=paid)
 
     episode_id = mem.insert_episode(heading, scene.get("source") or source, scene)
@@ -118,7 +120,7 @@ def run_episode(
     condenser = get_condenser()
     condensation = condenser.condense(scene)
     mem.commit(condensation, episode_id=episode_id)
-    if ltm_pin and not refuse_reason:
+    if ltm_pin:
         mem.pin_episode(episode_id)
 
     if used_ids:
