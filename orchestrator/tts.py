@@ -177,7 +177,15 @@ def render(scene: dict[str, Any], episode_id: int, out_dir: Path | None = None, 
             progress({"phase": "speaking", "beat": i + 1, "beats": total, "speaker": speaker})
         filename = f"ep{int(episode_id):04d}_{i:02d}_{speaker}.wav"
         dest = tts_dir / filename
-        duration = _render_line(speaker, line, dest, models)
+        if dest.is_file() and dest.stat().st_size > 44:
+            duration = wav_duration_sec(dest)
+        else:
+            duration = _render_line(speaker, line, dest, models)
+            try:
+                from orchestrator import r2
+                r2.put_file(dest)
+            except Exception:
+                pass
         rel = dest.relative_to(ROOT).as_posix()
         beats_out.append(
             {
@@ -195,8 +203,14 @@ def render(scene: dict[str, Any], episode_id: int, out_dir: Path | None = None, 
         "episode_id": int(episode_id),
         "scene": scene.get("scene") or "living_room",
         "topic": scene.get("topic") or "",
+        "source": scene.get("source") or "viewer",
         "beats": beats_out,
     }
+    try:
+        from orchestrator import archive
+        archive.upsert_manifest(packet)
+    except Exception:
+        pass
     return packet
 
 
