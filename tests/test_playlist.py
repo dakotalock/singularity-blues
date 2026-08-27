@@ -131,3 +131,16 @@ def test_eta_returns_remaining_seconds(tmp_path, monkeypatch):
     assert pl.format_eta_copy(0) == "on now"
     assert pl.format_eta_copy(3) == "on now"
     assert "1m" in pl.format_eta_copy(40)
+
+
+def test_board_lists_queued_titles(tmp_path, monkeypatch):
+    pl = _reset(monkeypatch, tmp_path)
+    pl.pin(_packet(tmp_path, 1, "Break the fourth wall by Dakota", source="viewer"))
+    pl.pin(_packet(tmp_path, 2, "Programming tips by Rook", source="viewer"))
+    pl.pin(_packet(tmp_path, 3, "Reviewer 2 by GPT SOL", source="viewer"))
+    b = pl.board()
+    assert b["now"] == "Break the fourth wall by Dakota"
+    assert [x["topic"] for x in b["queue"]] == [
+        "Programming tips by Rook",
+        "Reviewer 2 by GPT SOL",
+    ]
