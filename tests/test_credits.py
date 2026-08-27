@@ -1,5 +1,7 @@
 from orchestrator.credits import (
     balance,
+    buyer_for_recovery_key,
+    ensure_recovery_key,
     grant_bundle,
     refund_credit,
     refund_pin,
@@ -52,3 +54,33 @@ def test_ltm_pin_refund_keeps_credit(monkeypatch, tmp_path):
     bal = balance("b")
     assert bal["credits"] == 4
     assert bal["ltm_pins"] == 1
+
+
+def test_ensure_recovery_key_is_stable(monkeypatch, tmp_path):
+    _iso(monkeypatch, tmp_path)
+    first = ensure_recovery_key("buyer-stable")
+    second = ensure_recovery_key("buyer-stable")
+    assert first.startswith("sbk_")
+    assert first == second
+
+
+def test_grant_bundle_creates_recovery_key(monkeypatch, tmp_path):
+    _iso(monkeypatch, tmp_path)
+    granted = grant_bundle("buyer-grant", "5")
+    key = granted.get("recovery_key") or ensure_recovery_key("buyer-grant")
+    assert key.startswith("sbk_")
+    assert buyer_for_recovery_key(key) == "buyer-grant"
+
+
+def test_spend_then_lookup_by_key_sees_remaining(monkeypatch, tmp_path):
+    _iso(monkeypatch, tmp_path)
+    granted = grant_bundle("buyer-spend-key", "5")
+    key = granted.get("recovery_key") or ensure_recovery_key("buyer-spend-key")
+    assert spend_credit("buyer-spend-key", 2) is True
+    assert spend_pin("buyer-spend-key", 1) is True
+    found = buyer_for_recovery_key("  " + key + "  ")
+    assert found == "buyer-spend-key"
+    bal = balance(found)
+    assert bal["credits"] == 3
+    assert bal["ltm_pins"] == 0
+    assert ensure_recovery_key("buyer-spend-key") == key

@@ -33,3 +33,15 @@ def test_scene_player_has_a_central_interruption_barrier():
     assert "if _playing:\n\t\t_queue_pending_scene(data, is_seed)" in player
     assert "scene_finished.emit()\n\tif not _pending_scenes.is_empty()" in player
     assert "_packet_key(pending) == incoming_key" in player
+
+
+def test_storage_mentions_recovery_key_and_restore():
+    html = (ROOT / "web" / "stage" / "index.html").read_text(encoding="utf-8")
+    lowered = html.lower()
+    assert "recovery key" in lowered
+    assert "restore" in lowered
+    assert 'id="sitcom-recovery-key"' in html
+    assert 'id="sitcom-recovery-input"' in html
+    assert 'id="sitcom-recovery-restore"' in html
+    assert "How prompts are stored" in html
+    assert '"index.pck":130512' in html
