@@ -246,3 +246,8 @@ class EpisodeIn(BaseModel):
     username: str | None = Field(default=None, max_length=40)
     ltm_pin: bool = False
     private_showing: bool = False
+
+
+from web.routes import register
+
+register(app)
