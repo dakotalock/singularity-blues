@@ -3,6 +3,9 @@ import json
 import pytest
 
 from orchestrator.gemini import GeminiClient, GeminiWriter, GEMINI_MODELS, WriterCascadeError, model_cascade
+from orchestrator.writer_cascade import install as _install_writer_cascade
+
+_install_writer_cascade()
 
 
 def _client_with_generate(fn):
