@@ -5,13 +5,16 @@
 		<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 		<title>The Singularity Blues</title>
 		<style>
-html, body, #canvas {
+html, body {
 	margin: 0;
 	padding: 0;
 	border: 0;
+	height: 100%;
 }
 
 body {
+	display: flex;
+	flex-direction: column;
 	color: white;
 	background-color: black;
 	overflow: hidden;
@@ -19,7 +22,13 @@ body {
 }
 
 #canvas {
+	margin: 0;
+	padding: 0;
+	border: 0;
 	display: block;
+	flex: 1 1 auto;
+	min-height: 0;
+	width: 100%;
 }
 
 #canvas:focus {
@@ -44,6 +53,7 @@ body {
 	justify-content: center;
 	align-items: center;
 	visibility: hidden;
+	z-index: 40;
 }
 
 #status-splash {
@@ -90,13 +100,28 @@ body {
 	z-index: 1;
 }
 
-#sitcom-bar {
-	position: absolute; left: 10px; right: 10px; top: 10px; z-index: 20;
-	display: flex; gap: 8px; align-items: center;
-	font: 16px/1.3 ui-sans-serif, system-ui, sans-serif;
-	pointer-events: none;
+#sitcom-chrome {
+	flex: 0 0 auto;
+	position: relative;
+	z-index: 30;
+	background: #0b1020;
+	padding-top: max(10px, env(safe-area-inset-top, 0px));
+	padding-right: max(12px, env(safe-area-inset-right, 0px));
+	padding-bottom: 10px;
+	padding-left: max(12px, env(safe-area-inset-left, 0px));
 }
-#sitcom-bar > * { pointer-events: auto; }
+
+body.broadcast #sitcom-chrome {
+	display: none;
+}
+
+#sitcom-bar {
+	display: flex;
+	gap: 8px;
+	align-items: center;
+	font: 16px/1.3 ui-sans-serif, system-ui, sans-serif;
+}
+
 #sitcom-gen {
 	font-size: 16px; background: #3d7dff; color: #fff; border: 0;
 	border-radius: 12px; padding: 12px 14px; cursor: pointer;
@@ -109,23 +134,28 @@ body {
 	background: #151b2ecc; color: #e8f0ff; border: 1px solid #2a3a60;
 	border-radius: 12px; padding: 10px 12px;
 }
-@media (max-width: 640px) {
-	#sitcom-bar { flex-wrap: wrap; }
-	#sitcom-prompt { flex: 1 0 100%; }
-	#sitcom-set { top: 110px; }
+#sitcom-set {
+	flex: 0 1 auto;
+	margin: 0;
+	color: #c9b48a;
+	font: 13px/1.3 ui-sans-serif, system-ui, sans-serif;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	pointer-events: none;
+	white-space: nowrap;
 }
 #sitcom-status {
-	position: absolute; left: 12px; right: 12px; bottom: 12px; z-index: 20;
-	color: #8aa0c8; font: 16px/1.3 ui-sans-serif, system-ui, sans-serif;
-	text-shadow: 0 1px 2px #000; pointer-events: none;
+	margin: 8px 0 0;
+	min-height: 1.3em;
+	color: #8aa0c8;
+	font: 16px/1.3 ui-sans-serif, system-ui, sans-serif;
+	pointer-events: none;
 }
 #sitcom-status.ok { color: #7dffb3; }
 #sitcom-status.bad { color: #ff8d8d; }
-#sitcom-set {
-	position: absolute; left: 12px; top: 58px; z-index: 20;
-	color: #c9b48a; font: 13px/1.3 ui-sans-serif, system-ui, sans-serif;
-	letter-spacing: 0.08em; text-transform: uppercase; pointer-events: none;
-	text-shadow: 0 1px 2px #000;
+@media (max-width: 640px) {
+	#sitcom-bar { flex-wrap: wrap; }
+	#sitcom-prompt { flex: 1 0 100%; }
 }
 		</style>
 		<link id="-gd-engine-icon" rel="icon" type="image/png" href="index.icon.png" />
@@ -133,12 +163,14 @@ body {
 
 	</head>
 	<body>
-		<div id="sitcom-bar">
-			<button id="sitcom-gen" type="button">Ask the Selector</button>
-			<input id="sitcom-prompt" type="text" placeholder="prompt the singularity blues" autocomplete="off" autocorrect="off" />
-		</div>
-		<p id="sitcom-status"></p>
-		<p id="sitcom-set"></p>
+		<header id="sitcom-chrome">
+			<div id="sitcom-bar">
+				<button id="sitcom-gen" type="button">Ask the Selector</button>
+				<p id="sitcom-set"></p>
+				<input id="sitcom-prompt" type="text" placeholder="A suggestion. Not a command." autocomplete="off" autocorrect="off" />
+			</div>
+			<p id="sitcom-status"></p>
+		</header>
 		<canvas id="canvas">
 			Your browser does not support the canvas tag.
 		</canvas>
@@ -155,7 +187,24 @@ body {
 
 		<script src="index.js"></script>
 		<script>
-const GODOT_CONFIG = {"args":[],"canvasResizePolicy":2,"ensureCrossOriginIsolationHeaders":true,"executable":"index","experimentalVK":false,"fileSizes":{"index.pck":109680,"index.wasm":43699190},"focusCanvas":true,"gdextensionLibs":[]};
+if (new URLSearchParams(location.search).get('broadcast') === '1') {
+	document.body.classList.add('broadcast');
+}
+function fitStage() {
+	const canvas = document.getElementById('canvas');
+	if (!canvas) return;
+	const rect = canvas.getBoundingClientRect();
+	const dpr = Math.min(window.devicePixelRatio || 1, 2);
+	const w = Math.max(1, Math.round(rect.width * dpr));
+	const h = Math.max(1, Math.round(rect.height * dpr));
+	if (canvas.width !== w) canvas.width = w;
+	if (canvas.height !== h) canvas.height = h;
+}
+window.addEventListener('load', fitStage);
+window.addEventListener('resize', fitStage);
+fitStage();
+
+const GODOT_CONFIG = {"args":[],"canvasResizePolicy":0,"ensureCrossOriginIsolationHeaders":true,"executable":"index","experimentalVK":false,"fileSizes":{"index.pck":109680,"index.wasm":43699190},"focusCanvas":true,"gdextensionLibs":[]};
 const GODOT_THREADS_ENABLED = false;
 const engine = new Engine(GODOT_CONFIG);
 
@@ -174,6 +223,7 @@ const engine = new Engine(GODOT_CONFIG);
 		if (mode === 'hidden') {
 			statusOverlay.remove();
 			initializing = false;
+			fitStage();
 			return;
 		}
 		statusOverlay.style.visibility = 'visible';
@@ -270,6 +320,7 @@ const engine = new Engine(GODOT_CONFIG);
 				},
 			});
 		}).then(() => {
+			fitStage();
 			setStatusMode('hidden');
 		}, displayFailureNotice);
 	}
