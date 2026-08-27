@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import os
 import subprocess
 import sys
@@ -37,7 +38,7 @@ from orchestrator.credits import (
     stripe_configured,
     verify_buyer,
 )
-from orchestrator.gemini import has_gemini_key
+from orchestrator.gemini import PromptRefused, has_gemini_key
 from orchestrator.loop import run_episode
 from orchestrator.memory import Memory
 from orchestrator.moderation import episode_title, inspect, sanitize_display_name
@@ -114,6 +115,25 @@ def _airing_topic() -> str:
         return ""
 
 
+def _safe_refuse_note(note: str | None) -> str:
+    raw = (note or "").strip()
+    if not raw:
+        return ""
+    text = raw.splitlines()[0].strip()
+    if not text or len(text) > 180:
+        return ""
+    if re.search(r"gemini|piper|gpt-?\d|claude|openai|google-genai", text, re.I):
+        return ""
+    return text[:160]
+
+
+def _public_job_error(exc: BaseException) -> str:
+    raw = f"{type(exc).__name__}: {exc}"
+    if re.search(r"gemini-\d|gemini-3|piper", raw, re.I):
+        return f"{type(exc).__name__}: writer unavailable"
+    return raw[:240]
+
+
 def _writing_copy(phase: str) -> str:
     now = _airing_topic()
     if phase == "speaking":
@@ -145,7 +165,7 @@ def _eta_for_job(job_id: str) -> dict:
         if jid == job_id:
             break
         other = _jobs.get(jid) or {}
-        if other.get("status") in ("error", "rejected"):
+        if other.get("status") in ("error", "rejected", "refused"):
             continue
         if other.get("status") == "ready" and other.get("episode_id"):
             continue
@@ -396,11 +416,6 @@ def post_episode(
             "ltm_pins": bal["ltm_pins"],
         }
 
-    if check.verdict != "accept" and pin_spent:
-        refund_pin(buyer_id, 1)
-        pin_spent = False
-        want_pin = False
-
     refuse_reason = check.reason if check.verdict == "refuse" else None
     writer_topic = check.text
     title = episode_title(writer_topic, username, refuse_reason=refuse_reason)
@@ -419,6 +434,8 @@ def post_episode(
             "username": username,
             "paid": paid,
             "error": "",
+            "note": "",
+            "refunded": False,
             "credits": balance(buyer_id)["credits"],
         }
         _job_order.append(job_id)
@@ -458,6 +475,19 @@ def post_episode(
                 job["topic"] = packet.get("topic") or job.get("topic") or ""
                 job["beats"] = len(packet.get("beats") or [])
                 job["beat"] = job["beats"]
+        except PromptRefused as exc:
+            if spent:
+                refund_credit(buyer_id, 1)
+            if pin_spent:
+                refund_pin(buyer_id, 1)
+            with _jobs_lock:
+                job = _jobs[job_id]
+                job["status"] = "refused"
+                job["phase"] = "refused"
+                job["note"] = _safe_refuse_note(exc.note)
+                job["error"] = ""
+                job["refunded"] = True
+                job["credits"] = balance(buyer_id)["credits"]
         except Exception as exc:
             if spent:
                 refund_credit(buyer_id, 1)
@@ -467,7 +497,9 @@ def post_episode(
                 job = _jobs[job_id]
                 job["status"] = "error"
                 job["phase"] = "error"
-                job["error"] = f"{type(exc).__name__}: {exc}"
+                job["error"] = _public_job_error(exc)
+                job["refunded"] = True
+                job["credits"] = balance(buyer_id)["credits"]
 
     threading.Thread(target=_work, daemon=True).start()
     return {
@@ -513,7 +545,7 @@ def queue_board() -> dict:
     with _jobs_lock:
         for jid in _job_order:
             job = _jobs.get(jid) or {}
-            if job.get("status") in ("error", "rejected", "ready"):
+            if job.get("status") in ("error", "rejected", "refused", "ready"):
                 continue
             title = str(job.get("topic") or "").strip()
             if not title:
