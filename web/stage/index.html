@@ -620,6 +620,11 @@ const engine = new Engine(GODOT_CONFIG);
 		window.scrollTo(0, 0);
 	}
 
+	if (document.body.classList.contains('broadcast')) {
+		setAudioEnabled(true);
+		setInterval(() => setAudioEnabled(true), 2000);
+	}
+
 	if (volumeButton) {
 		volumeButton.addEventListener('click', async (event) => {
 			event.preventDefault();
