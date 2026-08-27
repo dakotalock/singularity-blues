@@ -68,21 +68,22 @@ def test_secondary_tools_use_compact_disclosure_panels():
     assert 'id="sitcom-recovery-copy"' in html
 
 
-
 def test_private_showing_copy_and_control():
     html = (ROOT / "web" / "stage" / "index.html").read_text(encoding="utf-8")
-    assert "Private Showing" in html
-    assert 'id="sitcom-private"' in html
-    assert "saved to the library and memory" in html.lower()
-    assert "without waiting on others" in html.lower()
-    assert "Ask the Selector" in html
-    assert "Gemini" not in html
-    assert "Piper" not in html
-    assert "gemini-3.7" not in html
+    js = (ROOT / "web" / "stage" / "private-showing.js").read_text(encoding="utf-8")
+    page = html + js
+    assert "Private Showing" in page
+    assert 'id="sitcom-private"' in page
+    assert "saved to the library and memory" in page.lower()
+    assert "without waiting on others" in page.lower()
+    assert "Ask the Selector" in page
+    assert "Gemini" not in html and "Gemini" not in js
+    assert "Piper" not in html and "Piper" not in js
+    assert "gemini-3.7" not in page
     assert '"index.pck":130512' in html
     assert "#sitcom-chrome {" in html
     assert "overflow-y: auto" in html
     assert "touch-action: pan-y" in html
     assert "max-height: min(52dvh, 520px)" in html
     assert "body.broadcast #player-controls" in html
-    assert "private_showing" in html
+    assert "private_showing" in js
