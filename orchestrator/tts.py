@@ -152,18 +152,168 @@ def _ffmpeg_tone(path: Path, duration: float, hz: float) -> bool:
 
 
 def _available_models() -> dict[str, Path]:
-        found: dict[str, Path] = {}
-        for speaker, filename in VOICE_FILES.items():
-            candidate = VOICES_DIR / filename
-            if candidate.is_file():
-                found[speaker] = candidate
-        if found:
-            return found
-        # Any onnx in voices dir.
-        if VOICES_DIR.is_dir():
-            onnxs = sorted(VOICES_DIR.glob("*.onnx"))
-            if onnxs:
-                speakers = list(VOICE_FILES)
-                for i, speaker in enumerate(speakers):
-                    found[speaker] = onnxs[i % len(onnxs)]
+    found: dict[str, Path] = {}
+    for speaker, filename in VOICE_FILES.items():
+        candidate = VOICES_DIR / filename
+        if candidate.is_file():
+            found[speaker] = candidate
+    if found:
         return found
+    # Any onnx in voices dir.
+    if VOICES_DIR.is_dir():
+        onnxs = sorted(VOICES_DIR.glob("*.onnx"))
+        if onnxs:
+            speakers = list(VOICE_FILES)
+            for i, speaker in enumerate(speakers):
+                found[speaker] = onnxs[i % len(onnxs)]
+    return found
+
+
+def piper_available() -> bool:
+    return PIPER_BIN.is_file() and os.access(PIPER_BIN, os.X_OK) and bool(_available_models())
+
+
+def _run_piper(text: str, model: Path, out: Path) -> bool:
+    env = os.environ.copy()
+    libdir = str(PIPER_BIN.parent)
+    env["LD_LIBRARY_PATH"] = libdir + ((":" + env["LD_LIBRARY_PATH"]) if env.get("LD_LIBRARY_PATH") else "")
+    timeout = _piper_timeout_sec(text)
+    try:
+        proc = subprocess.run(
+            [str(PIPER_BIN), "--model", str(model), "--output_file", str(out)],
+            input=(text.strip() + "\n").encode("utf-8"),
+            capture_output=True,
+            timeout=timeout,
+            env=env,
+            cwd=str(PIPER_BIN.parent),
+        )
+        if proc.returncode != 0 or not out.is_file():
+            _safe_unlink(out)
+            return False
+        if not _normalize_wav(out) or not _usable_wav(out):
+            _safe_unlink(out)
+            return False
+        return True
+    except (subprocess.SubprocessError, OSError):
+        _safe_unlink(out)
+        return False
+
+
+def _pitch_shift(src: Path, dest: Path, factor: float) -> bool:
+    ffmpeg = shutil.which("ffmpeg")
+    if not ffmpeg or abs(factor - 1.0) < 0.02:
+        if src != dest:
+            shutil.copyfile(src, dest)
+        return dest.is_file()
+    rate = int(SAMPLE_RATE * factor)
+    cmd = [
+        ffmpeg,
+        "-y",
+        "-i",
+        str(src),
+        "-af",
+        f"asetrate={rate},aresample={SAMPLE_RATE},atempo={1/factor:.4f}",
+        "-acodec",
+        "pcm_s16le",
+        "-ac",
+        "1",
+        "-ar",
+        str(SAMPLE_RATE),
+        str(dest),
+    ]
+    try:
+        subprocess.run(cmd, check=True, capture_output=True, timeout=20)
+        return dest.is_file()
+    except (subprocess.SubprocessError, OSError):
+        shutil.copyfile(src, dest)
+        return dest.is_file()
+
+
+def _render_line(speaker: str, line: str, dest: Path, models: dict[str, Path]) -> float:
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    speaker = str(speaker or "reed").strip().lower() or "reed"
+    duration = _duration_estimate(line)
+    if piper_available() and models:
+        model = models.get(speaker) or next(iter(models.values()))
+        if _run_piper(line, model, dest):
+            # If we reused a single model, pitch-shift into character.
+            unique_models = {p.resolve() for p in models.values()}
+            if len(unique_models) == 1:
+                shifted = dest.with_suffix(".shift.wav")
+                factor = PITCH_SHIFT.get(speaker, 1.0)
+                if _pitch_shift(dest, shifted, factor):
+                    shifted.replace(dest)
+                _safe_unlink(shifted)
+            if _normalize_wav(dest) and _usable_wav(dest):
+                return wav_duration_sec(dest)
+            _safe_unlink(dest)
+    hz = TONE_HZ.get(speaker, 300)
+    if _ffmpeg_tone(dest, duration, hz):
+        return wav_duration_sec(dest)
+    _write_tone_wav(dest, duration, hz)
+    return wav_duration_sec(dest)
+
+
+def render(scene: dict[str, Any], episode_id: int, out_dir: Path | None = None, progress=None) -> dict[str, Any]:
+    """Write per-beat wavs and return a Godot now_playing packet (also written to disk)."""
+    tts_dir = Path(out_dir) if out_dir else TTS_DIR
+    tts_dir.mkdir(parents=True, exist_ok=True)
+    models = _available_models()
+    beats_out: list[dict[str, Any]] = []
+    scene_beats = list(scene.get("beats") or [])
+    total = len(scene_beats)
+    for i, beat in enumerate(scene_beats):
+        speaker = str(beat.get("speaker") or "reed").strip().lower() or "reed"
+        line = beat.get("line") or "..."
+        if progress:
+            progress({"phase": "speaking", "beat": i + 1, "beats": total, "speaker": speaker})
+        filename = _wav_name(episode_id, i, speaker, line)
+        dest = tts_dir / filename
+        if _usable_wav(dest):
+            duration = wav_duration_sec(dest)
+        else:
+            if dest.is_file():
+                _safe_unlink(dest)
+            duration = _render_line(speaker, line, dest, models)
+            try:
+                from orchestrator import r2
+                r2.put_file(dest)
+            except Exception:
+                pass
+        rel = dest.relative_to(ROOT).as_posix()
+        beats_out.append(
+            {
+                "speaker": speaker,
+                "line": line,
+                "emotion": beat.get("emotion") or "calm",
+                "animation": beat.get("animation") or "talking",
+                "target": beat.get("target"),
+                "camera": beat.get("camera") or "auto",
+                "audio": rel,
+                "duration_sec": round(float(duration), 3),
+            }
+        )
+    packet = {
+        "episode_id": int(episode_id),
+        "scene": scene.get("scene") or "living_room",
+        "topic": scene.get("topic") or "",
+        "source": scene.get("source") or "viewer",
+        "beats": beats_out,
+    }
+    try:
+        from orchestrator import archive
+        archive.upsert_manifest(packet)
+    except Exception:
+        pass
+    return packet
+
+
+def write_now_playing(packet: dict[str, Any], path: Path | None = None) -> Path:
+    target = Path(path) if path else NOW_PLAYING_PATH
+    target.parent.mkdir(parents=True, exist_ok=True)
+    tmp = target.with_suffix(".json.tmp")
+    import json
+
+    tmp.write_text(json.dumps(packet, indent=2), encoding="utf-8")
+    tmp.replace(target)
+    return target
