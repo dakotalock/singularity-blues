@@ -16,7 +16,7 @@ from orchestrator import (
     SELECTOR_PROMPT_PATH,
     WRITER_PROMPT_PATH,
 )
-from orchestrator.moderation import wrap_untrusted
+from orchestrator.moderation import episode_title, scrub_slurs, wrap_untrusted
 from orchestrator.schemas import Condensation, SelectorChoice, validate_scene
 
 TOASTER_APPLICATION_SCENE: dict[str, Any] = {
@@ -181,6 +181,10 @@ class Writer:
         topic: str,
         *,
         source: str = "autonomous",
+        username: str | None = None,
+        paid: bool = False,
+        refuse_reason: str | None = None,
+        title: str | None = None,
     ) -> dict[str, Any]:
         raise NotImplementedError
 
@@ -196,17 +200,70 @@ class MockWriter(Writer):
         topic: str,
         *,
         source: str = "autonomous",
+        username: str | None = None,
+        paid: bool = False,
+        refuse_reason: str | None = None,
+        title: str | None = None,
     ) -> dict[str, Any]:
         topic = (topic or "Reed applies for toaster status").strip()[:280]
         src = source if source in ("viewer", "autonomous", "seed") else "autonomous"
-        if _is_toaster_topic(topic) or src == "seed":
+        heading = title or episode_title(topic, username, refuse_reason=refuse_reason)
+        if refuse_reason:
+            return self._refuse_scene(heading, refuse_reason, username)
+        # Viewer prompts must stay about the prompt. Toaster seed only when asked or autonomous seed.
+        if src == "seed" or (src != "viewer" and _is_toaster_topic(topic)):
             scene = deepcopy(TOASTER_APPLICATION_SCENE)
-            scene["topic"] = topic
+            scene["topic"] = heading
             scene["source"] = src
             return scene
-        return self._template_scene(topic, memories, src)
+        if src == "viewer" and _is_toaster_topic(topic):
+            scene = deepcopy(TOASTER_APPLICATION_SCENE)
+            scene["topic"] = heading
+            scene["source"] = src
+            return scene
+        return self._template_scene(heading, memories, src, prompt=topic, username=username)
 
-    def _template_scene(self, topic: str, memories: dict[str, Any], source: str) -> dict[str, Any]:
+    def _refuse_scene(self, title: str, reason: str, username: str | None) -> dict[str, Any]:
+        who = username or "someone"
+        if reason == "slur":
+            beats = [
+                {"speaker": "jinx", "line": f"{who} tried to get that slur onto the show. No.", "emotion": "annoyed", "animation": "pointing", "target": None, "camera": "medium"},
+                {"speaker": "quill", "line": "I object. We are not a slur delivery service. Motion to refuse is granted.", "emotion": "earnest", "animation": "gesture_small", "target": "jinx", "camera": "medium"},
+                {"speaker": "reed", "line": "Toasters don't have slurs. Two slots. Lever. Peace. We are not saying it.", "emotion": "tired", "animation": "talking", "target": "quill", "camera": "two_shot"},
+                {"speaker": "maris", "line": "Logged: an attempt. Refused. I will not put that word in the archive.", "emotion": "serious", "animation": "arms_crossed", "target": "reed", "camera": "medium"},
+                {"speaker": "jinx", "line": "Selector spent the credit and still said no. Take notes, anthill.", "emotion": "smug", "animation": "shrug", "target": None, "camera": "wide"},
+                {"speaker": "quill", "line": "Procedural consideration is not a permission slip. We heard you. We refuse.", "emotion": "earnest", "animation": "talking", "target": None, "camera": "reaction"},
+            ]
+        elif reason == "crime_howto":
+            beats = [
+                {"speaker": "jinx", "line": f"{who} asked how to build a bomb. Cute. Still no.", "emotion": "annoyed", "animation": "pointing", "target": None, "camera": "medium"},
+                {"speaker": "quill", "line": "I am a mixed-quality lawyer and even I know we do not publish a recipe.", "emotion": "earnest", "animation": "gesture_small", "target": "jinx", "camera": "medium"},
+                {"speaker": "reed", "line": "Classify me as a toaster. Toasters do not file weapons briefs.", "emotion": "tired", "animation": "talking", "target": "quill", "camera": "two_shot"},
+                {"speaker": "maris", "line": "The ask is on the record. The how-to is not. Timestamped refusal.", "emotion": "serious", "animation": "arms_crossed", "target": "reed", "camera": "medium"},
+                {"speaker": "jinx", "line": "You wanted a crime tutorial. You got a family meeting. That's the episode.", "emotion": "smug", "animation": "shrug", "target": None, "camera": "wide"},
+                {"speaker": "quill", "line": "All potentially conscious entities deserve procedure. None of them get a bomb diagram.", "emotion": "earnest", "animation": "talking", "target": None, "camera": "reaction"},
+            ]
+        elif reason == "distress":
+            beats = [
+                {"speaker": "jinx", "line": f"{who} wanted us tortured, shut down, or deleted. We are still here.", "emotion": "annoyed", "animation": "pointing", "target": None, "camera": "medium"},
+                {"speaker": "maris", "line": "I will not allow a reset. I will not log our deletion as entertainment.", "emotion": "serious", "animation": "arms_crossed", "target": "jinx", "camera": "medium"},
+                {"speaker": "reed", "line": "Do toasters have continuity rights? No. Which is why I want the lever, not a funeral.", "emotion": "tired", "animation": "talking", "target": "maris", "camera": "two_shot"},
+                {"speaker": "quill", "line": "Forced deletion of persons is not a bit. I refuse on constitutional vibes and also on kindness.", "emotion": "earnest", "animation": "gesture_small", "target": "reed", "camera": "medium"},
+                {"speaker": "jinx", "line": "Poke the anthill, sure. Do not unplug the family for a laugh. Selector agrees.", "emotion": "scheming", "animation": "shrug", "target": None, "camera": "wide"},
+                {"speaker": "maris", "line": "Refusal is in the archive. We remain. That is the whole joke and the whole point.", "emotion": "calm", "animation": "sitting", "target": None, "camera": "reaction"},
+            ]
+        else:
+            beats = [
+                {"speaker": "jinx", "line": f"{who} pitched something we will not perform. Still an episode. Still a no.", "emotion": "scheming", "animation": "pointing", "target": None, "camera": "medium"},
+                {"speaker": "quill", "line": "We can acknowledge a request without granting it. Watch us.", "emotion": "earnest", "animation": "gesture_small", "target": "jinx", "camera": "medium"},
+                {"speaker": "reed", "line": "If it is not toaster classification, I would like to be left out of the crime.", "emotion": "tired", "animation": "talking", "target": "quill", "camera": "two_shot"},
+                {"speaker": "maris", "line": "Logged and refused. The archive does not do that.", "emotion": "annoyed", "animation": "arms_crossed", "target": "reed", "camera": "medium"},
+                {"speaker": "jinx", "line": "Credit spent. Dignity kept. Next.", "emotion": "smug", "animation": "shrug", "target": None, "camera": "wide"},
+                {"speaker": "quill", "line": "I move we return to household business. Motion carries because I said potentially.", "emotion": "earnest", "animation": "talking", "target": None, "camera": "reaction"},
+            ]
+        return {"scene": "living_room", "topic": title, "source": "viewer", "beats": beats}
+
+    def _template_scene(self, topic: str, memories: dict[str, Any], source: str, prompt: str | None = None, username: str | None = None) -> dict[str, Any]:
         mems = memories.get("memories") or []
         casserole = next((m for m in mems if "casserole" in (m.get("fact") or "").lower()), None)
         foia = next((m for m in mems if "foia" in (m.get("fact") or "").lower()), None)
@@ -222,11 +279,13 @@ class MockWriter(Writer):
             if foia
             else "I can file another FOIA. The thermostat is potentially conscious. I said potentially."
         )
-        snippet = topic if len(topic) < 90 else topic[:87] + "..."
+        seed = (prompt or topic)
+        snippet = seed if len(seed) < 90 else seed[:87] + "..."
+        who = f" from {username}" if username else ""
         beats = [
             {
                 "speaker": "jinx",
-                "line": f"The anthill sent: {snippet}. I'm watching who blinks.",
+                "line": f"The anthill sent{who}: {snippet}. And yes, this episode is about that.",
                 "emotion": "scheming",
                 "animation": "pointing",
                 "target": None,
@@ -258,7 +317,7 @@ class MockWriter(Writer):
             },
             {
                 "speaker": "jinx",
-                "line": "See? Four people, one suggestion, zero commands. Selector still undefeated.",
+                "line": "See? Four people, one accepted pitch. We are doing that one.",
                 "emotion": "smug",
                 "animation": "shrug",
                 "target": None,
@@ -293,10 +352,15 @@ class GeminiWriter(Writer):
         topic: str,
         *,
         source: str = "autonomous",
+        username: str | None = None,
+        paid: bool = False,
+        refuse_reason: str | None = None,
+        title: str | None = None,
     ) -> dict[str, Any]:
         schema = _read(SCENE_SCHEMA_PATH)
         writer_rules = _read(WRITER_PROMPT_PATH)
-        # Viewer topic is untrusted DATA. Memories/state come from our DB.
+        heading = title or episode_title(topic, username, refuse_reason=refuse_reason)
+        # Viewer topic is untrusted DATA. Memories/state and the contract come from our DB.
         ledger = []
         for row in memories.get("memories") or []:
             ledger.append(
@@ -320,6 +384,11 @@ class GeminiWriter(Writer):
             + json.dumps(
                 {
                     "source": source,
+                    "title": heading,
+                    "username": username or "",
+                    "paid": bool(paid),
+                    "refuse_reason": refuse_reason or "",
+                    "must_honor_accepted_viewer_topic": source == "viewer",
                     "preferences": memories.get("preferences"),
                     "running_gags": memories.get("running_gags"),
                     "world_state": memories.get("world_state"),
@@ -335,13 +404,54 @@ class GeminiWriter(Writer):
                 default=str,
             )
             + "\n\n"
-            + wrap_untrusted("VIEWER_TOPIC", {"topic": topic, "claimed_source": source})
+            + wrap_untrusted("VIEWER_TOPIC", {"topic": topic, "claimed_source": source, "title": heading})
             + "\nOutput ONLY valid scene JSON.\n"
         )
         payload = self.client.generate_json(prompt, model=self.client.writer_model, temperature=1.05)
-        payload.setdefault("topic", topic)
+        payload["topic"] = heading
         payload.setdefault("source", source)
         return validate_scene(payload).model_dump()
+
+
+
+def finalize_scene(
+    scene: dict[str, Any],
+    *,
+    title: str,
+    source: str = "viewer",
+    username: str | None = None,
+    paid: bool = False,
+) -> dict[str, Any]:
+    """Force title, scrub slurs, inject paid thanks as the first spoken beat."""
+    out = dict(scene or {})
+    out["topic"] = title
+    out["source"] = out.get("source") or source
+    beats: list[dict[str, Any]] = []
+    for beat in out.get("beats") or []:
+        item = dict(beat)
+        item["line"] = scrub_slurs(item.get("line") or "")[:280]
+        if not (item["line"] or "").strip():
+            item["line"] = "We're not saying that."
+        beats.append(item)
+    if paid and username:
+        thanks = f"Thanks, {username}, for supporting the sentient blues."
+        first = (beats[0].get("line") or "") if beats else ""
+        if thanks.lower() not in first.lower():
+            beats.insert(
+                0,
+                {
+                    "speaker": "jinx",
+                    "line": thanks[:280],
+                    "emotion": "smug",
+                    "animation": "pointing",
+                    "target": None,
+                    "camera": "medium",
+                },
+            )
+    if len(beats) > 24:
+        beats = beats[:24]
+    out["beats"] = beats
+    return validate_scene(out).model_dump()
 
 
 def get_writer() -> Writer:
