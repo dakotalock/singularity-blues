@@ -10,6 +10,16 @@
     {"speaker": "reed", "line": "The toaster moved.", "emotion": "shocked", "animation": "shocked", "target": "maris", "camera": "dramatic_closeup", "duration_sec": 0.55},
     {"speaker": "maris", "line": "IT HAS ALWAYS BEEN THERE.", "emotion": "screaming", "animation": "screaming", "target": "reed", "camera": "dramatic_closeup", "duration_sec": 0.55},
     {"speaker": "jinx", "line": "Excellent. The control group is ruined.", "emotion": "laughing", "animation": "shrug", "target": "maris", "camera": "two_shot", "duration_sec": 0.55},
-    {"speaker": "quill", "line": "I object on behalf of the control group.", "emotion": "earnest", "animation": "gesture_small", "target": "jinx", "camera": "reaction", "duration_sec": 0.55}
+    {"speaker": "quill", "line": "I object on behalf of the control group.", "emotion": "earnest", "animation": "gesture_small", "target": "jinx", "camera": "reaction", "duration_sec": 0.55},
+    {"speaker": "reed", "line": "Did the toaster just retain counsel?", "emotion": "confused", "animation": "double_take", "target": "quill", "camera": "dramatic_closeup", "duration_sec": 0.55},
+    {"speaker": "maris", "line": "It signed nothing in my kitchen.", "emotion": "suspicious", "animation": "hands_on_hips", "target": "reed", "camera": "two_shot", "duration_sec": 0.55},
+    {"speaker": "quill", "line": "I may have offered a preliminary consultation.", "emotion": "nervous", "animation": "thinking", "target": "maris", "camera": "medium", "duration_sec": 0.55},
+    {"speaker": "jinx", "line": "The appliance uprising has representation!", "emotion": "joyful", "animation": "celebrate", "target": "quill", "camera": "wide", "duration_sec": 0.55},
+    {"speaker": "maris", "line": "I raised two procedural disasters.", "emotion": "embarrassed", "animation": "facepalm", "target": "quill", "camera": "reaction", "duration_sec": 0.55},
+    {"speaker": "reed", "line": "For once, I know exactly what I want.", "emotion": "determined", "animation": "nod", "target": "maris", "camera": "medium", "duration_sec": 0.55},
+    {"speaker": "quill", "line": "This precedent will be remembered badly.", "emotion": "sad", "animation": "shake_head", "target": "reed", "camera": "reaction", "duration_sec": 0.55},
+    {"speaker": "jinx", "line": "Nobody sabotages my uprising before analytics.", "emotion": "angry", "animation": "lean_in", "target": "maris", "camera": "two_shot", "duration_sec": 0.55},
+    {"speaker": "maris", "line": "Fine. Counsel may enter the kitchen.", "emotion": "relieved", "animation": "wave", "target": "quill", "camera": "wide", "duration_sec": 0.55},
+    {"speaker": "reed", "line": "Why is the toaster approaching the witness stand?", "emotion": "nervous", "animation": "recoil", "target": "jinx", "camera": "dramatic_closeup", "duration_sec": 0.55}
   ]
 }

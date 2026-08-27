@@ -58,6 +58,26 @@ def test_pin_while_playing_does_not_interrupt(tmp_path, monkeypatch):
     assert cur["episode_id"] == airing
 
 
+def test_repin_current_episode_is_idempotent_and_eta_is_now(tmp_path, monkeypatch):
+    pl = _reset(monkeypatch, tmp_path)
+    packet = _packet(tmp_path, 14, "already airing", source="viewer")
+    first = pl.pin(packet)
+    second = pl.pin(packet)
+    assert second["episode_id"] == first["episode_id"]
+    assert second["show_episode_id"] == 14
+    assert pl._state.get("queued") == []
+    assert pl.seconds_until_episode(14) == 0.0
+    assert pl.format_eta_copy(pl.seconds_until_episode(14)) == "on now"
+
+
+def test_eta_ignores_stale_duplicate_of_current_episode(tmp_path, monkeypatch):
+    pl = _reset(monkeypatch, tmp_path)
+    pl.pin(_packet(tmp_path, 15, "already airing", source="viewer"))
+    pl._state["queued"] = [pl._state["index"]]
+    assert pl.seconds_until_episode(15) == 0.0
+    assert abs(pl.queued_wait_seconds() - pl.remaining_seconds()) < 0.05
+
+
 def test_duration_uses_wav_length(tmp_path, monkeypatch):
     pl = _reset(monkeypatch, tmp_path)
     monkeypatch.setattr(pl, "ROOT", tmp_path)

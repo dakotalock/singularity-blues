@@ -44,7 +44,6 @@ def _fake_run(monkeypatch):
 
     monkeypatch.setattr("web.app.has_gemini_key", lambda: True)
     monkeypatch.setattr("web.app.run_episode", run)
-    monkeypatch.setattr("web.app.playlist_pin", lambda p: p)
     return captured
 
 
@@ -172,7 +171,6 @@ def test_writer_refuse_refunds_credit_and_pin(monkeypatch, tmp_path):
 
     monkeypatch.setattr("web.app.has_gemini_key", lambda: True)
     monkeypatch.setattr("web.app.run_episode", run)
-    monkeypatch.setattr("web.app.playlist_pin", lambda p: p)
     client = TestClient(app)
     client.cookies.set("sb_buyer", sign_buyer("buyerRefuse"))
     r = client.post(

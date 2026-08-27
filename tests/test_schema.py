@@ -1,8 +1,11 @@
+from pathlib import Path
+from typing import get_args
+
 import pytest
 from pydantic import ValidationError
 
 from orchestrator.gemini import TOASTER_APPLICATION_SCENE, MockWriter
-from orchestrator.schemas import validate_scene
+from orchestrator.schemas import Animation, Emotion, validate_scene
 
 
 def test_toaster_scene_validates():
@@ -82,6 +85,28 @@ def test_coerces_illegal_emotion_and_animation():
     scene = validate_scene(payload)
     assert scene.beats[0].emotion in ("earnest", "calm")
     assert scene.beats[0].animation == "walking"
+
+
+def test_expanded_performance_vocabulary_validates_and_is_rendered():
+    emotions = list(get_args(Emotion))
+    animations = list(get_args(Animation))
+    payload = {
+        "scene": "porch",
+        "topic": "the cast gets a larger acting vocabulary",
+        "beats": [
+            {"speaker": "reed", "line": "I have layers now.", "emotion": "confused", "animation": "double_take"},
+            {"speaker": "maris", "line": "I remain unconvinced.", "emotion": "suspicious", "animation": "hands_on_hips"},
+            {"speaker": "jinx", "line": "This is excellent.", "emotion": "joyful", "animation": "celebrate"},
+            {"speaker": "quill", "line": "I need a precedent.", "emotion": "nervous", "animation": "thinking"},
+        ],
+    }
+    scene = validate_scene(payload)
+    assert [beat.emotion for beat in scene.beats] == ["confused", "suspicious", "joyful", "nervous"]
+    assert [beat.animation for beat in scene.beats] == ["double_take", "hands_on_hips", "celebrate", "thinking"]
+
+    character_source = (Path(__file__).parents[1] / "renderer/scripts/Character.gd").read_text(encoding="utf-8")
+    for token in emotions + animations:
+        assert f'"{token}"' in character_source
 
 
 def test_invalid_target_becomes_none():

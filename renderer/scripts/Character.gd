@@ -10,12 +10,16 @@ class_name CharacterActor
 
 const ANIMS := [
 	"idle", "talking", "gesture_small", "arms_crossed", "shrug", "pointing",
-	"sitting", "walking", "shocked", "crying", "screaming", "enter", "leave"
+	"sitting", "walking", "shocked", "crying", "screaming", "enter", "leave",
+	"wave", "nod", "shake_head", "facepalm", "hands_on_hips", "lean_in",
+	"celebrate", "recoil", "double_take", "thinking"
 ]
 
 const _FACE_EMOTIONS := [
 	"calm", "serious", "annoyed", "scheming", "earnest", "shocked",
-	"laughing", "screaming", "tired", "smug", "crying"
+	"laughing", "screaming", "tired", "smug", "crying", "joyful", "sad",
+	"angry", "nervous", "confused", "embarrassed", "determined",
+	"suspicious", "relieved"
 ]
 
 const _TURN_SPEED := 6.5
@@ -363,9 +367,9 @@ func set_expression(emotion: String) -> void:
 	var requested := emotion.to_lower()
 	match requested:
 		"smile":
-			requested = "laughing"
-		"frown", "sad":
-			requested = "crying"
+			requested = "joyful"
+		"frown":
+			requested = "sad"
 	if not (requested in _FACE_EMOTIONS):
 		requested = "calm"
 	_expression = requested
@@ -1026,6 +1030,32 @@ func _acting_targets(
 			torso.x -= 0.018
 			head_pose.z += idle_gate * 0.012
 
+	# Emotion remains visible even when the writer selects a restrained animation.
+	# These are small posture accents; the named animation below owns the large pose.
+	match _expression:
+		"joyful", "relieved":
+			torso.x -= 0.018
+			head_pose.x -= 0.025
+		"sad":
+			torso.x += 0.075
+			head_pose.x += 0.075
+		"angry", "determined":
+			torso.x -= 0.052
+			head_pose.x -= 0.038
+		"nervous":
+			shoulder_lift += 0.018 + absf(sin(_t * 5.3 + _phase)) * 0.012
+			head_pose.z += sin(_t * 3.7 + _phase) * 0.012
+		"confused":
+			head_pose.z += 0.105
+		"embarrassed":
+			head_pose.x += 0.055
+			head_pose.z -= 0.055
+		"suspicious":
+			torso.x += 0.025
+			head_pose.z += 0.055
+		_:
+			pass
+
 	match _anim:
 		"talking":
 			var talk_scale := 0.55 if _variant == "reed" else (1.15 if _variant == "jinx" else 0.78)
@@ -1086,6 +1116,64 @@ func _acting_targets(
 			le = Vector3(-0.10, 0.0, -0.08)
 			re = Vector3(-0.10, 0.0, 0.08)
 			shoulder_lift = 0.07
+		"wave":
+			var wave_phase := sin(_anim_t * 7.6 + _phase * 0.25)
+			rs = Vector3(-1.46, -0.10, 0.48 + wave_phase * 0.13)
+			re = Vector3(-0.72, 0.0, -0.22 + wave_phase * 0.24)
+			head_pose.z -= 0.045
+		"nod":
+			var nod_gate := 0.5 + 0.5 * sin(_anim_t * 5.8 - PI * 0.5)
+			head_pose.x += nod_gate * 0.15
+			torso.x += nod_gate * 0.018
+		"shake_head":
+			var shake := sin(_anim_t * 6.8) * 0.17
+			head_pose.y += shake
+			head_pose.z += sin(_anim_t * 3.4) * 0.025
+		"facepalm":
+			torso.x += 0.105
+			head_pose.x += 0.18
+			head_pose.z -= 0.055
+			rs = Vector3(-1.28, -0.08, 0.35)
+			re = Vector3(-1.42, 0.0, -0.42)
+			ls.x += 0.12
+		"hands_on_hips":
+			ls = Vector3(-0.12, 0.10, -0.78)
+			rs = Vector3(-0.12, -0.10, 0.78)
+			le = Vector3(-1.58, 0.0, 0.42)
+			re = Vector3(-1.58, 0.0, -0.42)
+			torso.x -= 0.045
+		"lean_in":
+			torso.x -= 0.16
+			head_pose.x += 0.07
+			ls.x -= 0.16
+			rs.x -= 0.16
+		"celebrate":
+			var cheer := absf(sin(_anim_t * 4.8))
+			torso.x -= 0.07
+			head_pose.x -= 0.10
+			ls = Vector3(-2.42, 0.0, -0.38)
+			rs = Vector3(-2.42, 0.0, 0.38)
+			le.x = -0.20
+			re.x = -0.20
+			shoulder_lift = 0.055 + cheer * 0.025
+		"recoil":
+			torso.x += 0.19
+			head_pose.x -= 0.08
+			ls = Vector3(-0.44, 0.12, -0.88)
+			rs = Vector3(-0.44, -0.12, 0.88)
+			le.x = -0.78
+			re.x = -0.78
+		"double_take":
+			var take_phase := sin(minf(_anim_t, 0.78) * 8.0) * exp(-_anim_t * 0.55)
+			head_pose.y += take_phase * 0.30
+			head_pose.x -= absf(take_phase) * 0.07
+		"thinking":
+			torso.x += 0.035
+			head_pose.x += 0.105
+			head_pose.z += 0.085
+			rs = Vector3(-0.92, -0.12, 0.30)
+			re = Vector3(-1.18, 0.0, -0.32)
+			ls = Vector3(0.05, 0.0, -0.16)
 		_:
 			pass
 
@@ -1165,12 +1253,20 @@ func _update_eyes(w: float) -> void:
 	match _expression:
 		"tired":
 			expression_open = 0.68
+		"sad", "embarrassed":
+			expression_open = 0.74
 		"annoyed":
 			expression_open = 0.83
-		"scheming", "smug":
+		"angry", "determined":
+			expression_open = 0.76
+		"scheming", "smug", "suspicious":
 			expression_open = 0.88
-		"laughing":
+		"laughing", "joyful":
 			expression_open = 0.52
+		"relieved":
+			expression_open = 0.70
+		"nervous", "confused":
+			expression_open = 1.02
 		"crying":
 			expression_open = 0.72
 		"shocked", "screaming":
@@ -1240,6 +1336,41 @@ func _update_brows(w: float) -> void:
 			rr = -0.23
 			ly += 0.012
 			ry += 0.012
+		"joyful", "relieved":
+			lr = 0.13
+			rr = -0.13
+			ly += 0.018
+			ry += 0.018
+		"sad":
+			lr = 0.25
+			rr = -0.25
+			ly += 0.020
+			ry += 0.020
+		"angry":
+			lr = -0.34
+			rr = 0.34
+			ly -= 0.026
+			ry -= 0.026
+		"nervous":
+			lr = 0.20
+			rr = -0.08
+			ly += 0.025
+			ry += 0.006
+		"confused", "suspicious":
+			lr = 0.16
+			rr = 0.20
+			ly += 0.034
+			ry -= 0.016
+		"embarrassed":
+			lr = 0.19
+			rr = -0.19
+			ly += 0.010
+			ry += 0.010
+		"determined":
+			lr = -0.22
+			rr = 0.22
+			ly -= 0.012
+			ry -= 0.012
 	_l_brow.position.y = lerpf(_l_brow.position.y, ly, w)
 	_r_brow.position.y = lerpf(_r_brow.position.y, ry, w)
 	_l_brow.rotation.z = lerp_angle(_l_brow.rotation.z, lr, w)
@@ -1258,10 +1389,10 @@ func _update_mouth(w: float) -> void:
 	elif _expression == "screaming":
 		width = head_w * 0.55
 		height = head_h * 0.92
-	elif _expression == "laughing":
+	elif _expression in ["laughing", "joyful"]:
 		width = head_w * 0.76
 		height *= 0.78
-	elif _expression in ["annoyed", "crying"]:
+	elif _expression in ["annoyed", "angry", "sad", "crying"]:
 		width *= 0.88
 
 	var show_open := open > 0.045
@@ -1278,7 +1409,7 @@ func _update_mouth(w: float) -> void:
 	var right_rot := 0.0
 	var line_y := _mouth_y
 	match _expression:
-		"laughing", "earnest":
+		"laughing", "joyful", "earnest", "relieved":
 			left_rot = -0.20
 			right_rot = 0.20
 			line_y += 0.006
@@ -1286,14 +1417,23 @@ func _update_mouth(w: float) -> void:
 			left_rot = -0.03
 			right_rot = 0.22
 			line_y += 0.004
-		"annoyed", "crying":
+		"annoyed", "angry", "sad", "crying":
 			left_rot = 0.19
 			right_rot = -0.19
 			line_y -= 0.004
 		"tired":
 			left_rot = 0.08
 			right_rot = -0.08
-	var half_w := head_w * (0.30 if _expression not in ["laughing", "smug"] else 0.35)
+		"nervous", "embarrassed":
+			left_rot = 0.04
+			right_rot = 0.15
+		"confused", "suspicious":
+			left_rot = -0.10
+			right_rot = 0.10
+		"determined":
+			left_rot = 0.03
+			right_rot = -0.03
+	var half_w := head_w * (0.30 if _expression not in ["laughing", "joyful", "smug"] else 0.35)
 	var lip_scale := Vector3(half_w, maxf(0.012, head_h * 0.045), 0.022)
 	_mouth_lip_l.scale = _mouth_lip_l.scale.lerp(lip_scale, w)
 	_mouth_lip_r.scale = _mouth_lip_r.scale.lerp(lip_scale, w)

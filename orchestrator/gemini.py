@@ -157,6 +157,10 @@ class PromptRefused(Exception):
         super().__init__(self.note)
 
 
+class WriterCascadeError(RuntimeError):
+    """No configured writer produced a valid scene after every attempt."""
+
+
 def model_cascade(preferred: str | None = None) -> list[str]:
     raw = os.environ.get("GEMINI_MODELS", "").strip()
     models = [m.strip() for m in raw.split(",") if m.strip()] if raw else list(GEMINI_MODELS)
@@ -184,25 +188,29 @@ class GeminiClient:
         self.lite_model = os.environ.get("GEMINI_MODEL", "")
         self.writer_model = os.environ.get("GEMINI_WRITER_MODEL", "")
 
+    def generate_json_once(self, prompt: str, *, model: str, temperature: float = 0.9) -> dict[str, Any]:
+        """Call exactly one model. Writer-level validation decides whether to continue."""
+        resp = self.client.models.generate_content(
+            model=model,
+            contents=prompt,
+            config=self._types.GenerateContentConfig(
+                temperature=temperature,
+                response_mime_type="application/json",
+            ),
+        )
+        text = getattr(resp, "text", None) or ""
+        if not text and getattr(resp, "candidates", None):
+            try:
+                text = resp.candidates[0].content.parts[0].text
+            except Exception:
+                text = ""
+        return parse_json_text(text)
+
     def generate_json(self, prompt: str, *, model: str | None = None, temperature: float = 0.9) -> dict[str, Any]:
         last_err: Exception | None = None
         for mid in model_cascade(model):
             try:
-                resp = self.client.models.generate_content(
-                    model=mid,
-                    contents=prompt,
-                    config=self._types.GenerateContentConfig(
-                        temperature=temperature,
-                        response_mime_type="application/json",
-                    ),
-                )
-                text = getattr(resp, "text", None) or ""
-                if not text and getattr(resp, "candidates", None):
-                    try:
-                        text = resp.candidates[0].content.parts[0].text
-                    except Exception:
-                        text = ""
-                return parse_json_text(text)
+                return self.generate_json_once(prompt, model=mid, temperature=temperature)
             except Exception as exc:
                 last_err = exc
                 continue
@@ -459,13 +467,41 @@ class GeminiWriter(Writer):
             + wrap_untrusted("VIEWER_TOPIC", {"topic": topic, "claimed_source": source, "title": heading})
             + "\nOutput ONLY valid JSON: either scene JSON or a refuse object.\n"
         )
-        payload = self.client.generate_json(prompt, temperature=1.05)
-        if isinstance(payload, dict) and payload.get("refuse"):
-            note = payload.get("note") if isinstance(payload.get("note"), str) else ""
+        models = model_cascade()
+        refusals: list[str] = []
+        failures: list[Exception] = []
+        for model_id in models:
+            try:
+                generate_once = getattr(self.client, "generate_json_once", None)
+                if callable(generate_once):
+                    payload = generate_once(prompt, model=model_id, temperature=1.05)
+                else:
+                    # Compatibility for test doubles and alternate clients. The real
+                    # GeminiClient always uses the exact-one-model method above.
+                    payload = self.client.generate_json(prompt, model=model_id, temperature=1.05)
+                if isinstance(payload, dict) and payload.get("refuse"):
+                    note = payload.get("note") if isinstance(payload.get("note"), str) else ""
+                    refusals.append(note)
+                    continue
+                if not isinstance(payload, dict):
+                    raise TypeError("writer response was not a JSON object")
+                payload["topic"] = heading
+                payload.setdefault("source", source)
+                # Validation belongs inside the cascade: overlong strings, malformed
+                # beats, and invented enum values should give the next writer a turn.
+                return validate_scene(payload).model_dump()
+            except Exception as exc:
+                failures.append(exc)
+
+        if models and len(refusals) == len(models):
+            note = next((item for item in refusals if item.strip()), "")
             return {"refuse": True, "note": note}
-        payload["topic"] = heading
-        payload.setdefault("source", source)
-        return validate_scene(payload).model_dump()
+        if failures:
+            last = failures[-1]
+            raise WriterCascadeError(
+                f"all {len(models)} writer attempts failed; last error: {type(last).__name__}: {last}"
+            ) from last
+        raise WriterCascadeError("no writer models configured")
 
 
 

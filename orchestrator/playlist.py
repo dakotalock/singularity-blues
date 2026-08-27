@@ -214,7 +214,9 @@ def _advance_if_due(state: dict[str, Any], now: float) -> None:
     nxt = None
     while queued:
         cand = queued.pop(0)
-        if 0 <= cand < n:
+        # A repeated pin of the current packet used to put the currently-airing
+        # episode back at the head of its own queue. Drop that stale entry.
+        if 0 <= cand < n and cand != idx:
             nxt = cand
             break
     if nxt is not None:
@@ -258,7 +260,19 @@ def pin(packet: dict[str, Any]) -> dict[str, Any]:
             new_idx = len(packets) - 1
         now = time.time()
         if _playing(state, now):
-            queued = _parse_queued(state.get("queued"))
+            current_idx = int(state.get("index") or 0) % len(packets)
+            queued = [q for q in _parse_queued(state.get("queued")) if q != current_idx]
+            if new_idx == current_idx:
+                # Idempotent pin: update the stored packet, but do not schedule a
+                # replay of the episode that is already on screen.
+                state["queued"] = queued
+                _save(state)
+                try:
+                    from orchestrator import archive
+                    archive.upsert_episode(stored)
+                except Exception:
+                    pass
+                return _serve_packet(state)
             if new_idx not in queued:
                 queued.append(new_idx)
             state["queued"] = queued
@@ -504,8 +518,9 @@ def queued_wait_seconds(now: float | None = None) -> float:
         packets = state["packets"]
         if not packets:
             return wait
+        current_idx = int(state.get("index") or 0) % len(packets)
         for qidx in _parse_queued(state.get("queued")):
-            if 0 <= qidx < len(packets):
+            if 0 <= qidx < len(packets) and qidx != current_idx:
                 wait += _duration(packets[qidx]) + GRACE_SEC
         return wait
 
@@ -531,7 +546,9 @@ def seconds_until_episode(episode_id: int | None, now: float | None = None) -> f
                 break
         if target is None:
             return queued_wait_seconds(now)
-        if cur == target and target not in queued:
+        # If the target is visibly airing, its ETA is now even if an old duplicate
+        # queue entry survived from a prior build.
+        if cur == target:
             return 0.0
         wait = _remaining_locked(state, now)
         for qidx in queued:

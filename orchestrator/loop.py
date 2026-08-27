@@ -16,7 +16,6 @@ from orchestrator.schemas import validate_scene
 from orchestrator.seed import seed
 from orchestrator.selector import choose
 from orchestrator.playlist import pin as playlist_pin
-from orchestrator.tts import write_now_playing
 from orchestrator.voice_queue import HIGH, voice_episode
 
 
@@ -45,7 +44,7 @@ def run_episode(
     """
     1 collect prompts  2 prefilter  3 selector.choose
     4 memory.retrieve  5 write_scene  6 validate_schema
-    7 voice_queue.voice_episode  8 sidecar now_playing.json  9 memory.commit  10 print
+    7 voice_queue.voice_episode  8 memory.commit  9 playlist.pin/publish  10 print
     """
     source = "autonomous"
     used_ids: list[int] = []
@@ -112,11 +111,6 @@ def run_episode(
         progress=progress,
         source=scene.get("source") or source,
     )
-    write_now_playing(packet)
-    playlist_pin(packet)
-    if progress:
-        progress({"phase": "ready", "beat": len(packet.get("beats") or []), "beats": len(packet.get("beats") or []), "speaker": ""})
-
     condenser = get_condenser()
     condensation = condenser.condense(scene)
     mem.commit(condensation, episode_id=episode_id)
@@ -127,6 +121,13 @@ def run_episode(
         mem.mark_prompts(used_ids, "used")
     for pid, reason in rejected_ids:
         mem.mark_prompts([pid], "rejected", reason)
+
+    # Publishing is the final commit point. The player must not see an episode
+    # while its request still reports writing/voicing, and pin() owns whether it
+    # airs now or joins the queue behind the current rerun.
+    playlist_pin(packet)
+    if progress:
+        progress({"phase": "ready", "beat": len(packet.get("beats") or []), "beats": len(packet.get("beats") or []), "speaker": ""})
 
     print(f"episode_id={episode_id} topic={heading!r} source={scene.get('source') or source}")
     print(f"now_playing={NOW_PLAYING_PATH} beats={len(packet['beats'])}")

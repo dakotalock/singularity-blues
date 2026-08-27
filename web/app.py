@@ -47,7 +47,6 @@ from orchestrator.playlist import (
     current as playlist_current,
     ensure_voiced_boot,
     format_eta_copy,
-    pin as playlist_pin,
     queued_wait_seconds,
     remaining_seconds,
     seconds_until_episode,
@@ -466,7 +465,6 @@ def post_episode(
                     ltm_pin=want_pin,
                     title=title,
                 )
-                playlist_pin(packet)
             with _jobs_lock:
                 job = _jobs[job_id]
                 job["status"] = "ready"

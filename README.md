@@ -32,6 +32,8 @@ cp .env.example .env
 
 Models (when a key is present): cascade `gemini-3.7-flash`, `gemini-3.6-flash`, `gemini-2.5-flash`. Override with `GEMINI_MODELS` (comma-separated). Do not pin via `GEMINI_WRITER_MODEL` / `GEMINI_MODEL`.
 
+The writer tries the cascade one model at a time. API/JSON/schema failures and refusals advance to the next model; a refusal is accepted only when every configured writer refuses. A paid prompt is refunded only after the complete cascade fails or refuses.
+
 ## Env vars
 
 | Variable | What it is |
@@ -60,7 +62,9 @@ Hosted Stripe Checkout Sessions (`POST /checkout`, webhook `POST /stripe/webhook
 - $10 → 12 credits + 1 LTM pin
 - $20 → 30 credits + 3 LTM pins
 
-`POST /episode` spends 1 credit. Hard-rejects (injection, scream-spam, garbage, CSAM-adjacent, too short) refund **the credit**, never Stripe money. If the writer refuses, credit and pin are refunded. Buyer identity is a signed cookie.
+`POST /episode` spends 1 credit. Hard-rejects (injection, scream-spam, garbage, CSAM-adjacent, too short) refund **the credit**, never Stripe money. Writer errors and refusals first try all three configured writers; only an exhausted cascade refunds the credit and pin. Buyer identity is a signed cookie.
+
+The performance schema includes five sets, nineteen facial emotions, and twenty-three body animations. The writer is expected to choose purposeful reactions and movement rather than leaving every beat on the generic talking pose.
 
 ## Phone test (one button)
 

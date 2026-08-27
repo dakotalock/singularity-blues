@@ -77,10 +77,12 @@ func _pick(beat: Dictionary, index: int, beats: Array) -> String:
 		return "wide"
 	if anim == "sitting":
 		return "two_shot" if has_target else "wide"
-	if emotion in ["shocked", "screaming"] or anim in ["shocked", "screaming"]:
+	if emotion in ["shocked", "screaming", "angry"] or anim in ["shocked", "screaming", "recoil", "double_take"]:
 		return "dramatic_closeup"
-	if has_target and (anim in ["pointing", "arms_crossed", "shrug"] or emotion in ["annoyed", "serious", "scheming", "smug"]):
+	if has_target and (anim in ["pointing", "arms_crossed", "shrug", "hands_on_hips", "lean_in", "facepalm"] or emotion in ["annoyed", "serious", "scheming", "smug", "suspicious", "determined"]):
 		return "two_shot"
+	if anim in ["celebrate", "wave"]:
+		return "wide"
 	if index == 0:
 		return "medium"
 	# Re-establish geography occasionally, but never bounce wide on every line.

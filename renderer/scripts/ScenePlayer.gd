@@ -333,18 +333,22 @@ func _wants_reaction(beat: Dictionary, index: int) -> bool:
 	var anim := str(beat.get("animation", "talking"))
 	if camera_request == "reaction" or index == _beats.size() - 1:
 		return true
-	if emotion in ["shocked", "screaming"] or anim in ["shocked", "screaming"]:
+	if emotion in ["shocked", "screaming", "confused", "embarrassed"] or anim in ["shocked", "screaming", "recoil", "double_take", "facepalm"]:
 		return true
 	var line := str(beat.get("line", ""))
-	return beat.get("target", null) != null and line.length() < 96 and emotion in ["smug", "scheming", "tired"] and index % 3 == 1
+	return beat.get("target", null) != null and line.length() < 96 and emotion in ["smug", "scheming", "tired", "suspicious", "nervous"] and index % 3 == 1
 
 
 func _hold_after(beat: Dictionary, index: int) -> float:
 	var emotion := str(beat.get("emotion", "calm"))
 	var anim := str(beat.get("animation", "talking"))
 	var line := str(beat.get("line", ""))
-	if emotion in ["shocked", "screaming"] or anim in ["shocked", "screaming"]:
+	if emotion in ["shocked", "screaming"] or anim in ["shocked", "screaming", "recoil", "double_take"]:
 		return 0.68
+	if anim in ["facepalm", "shake_head", "thinking"]:
+		return 0.48
+	if anim == "celebrate":
+		return 0.58
 	if str(beat.get("camera", "auto")) == "reaction":
 		return 0.55
 	if index == _beats.size() - 1:

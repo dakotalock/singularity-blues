@@ -267,10 +267,16 @@ func _listener_expression(speaker_emotion: String, is_target: bool) -> String:
 	match speaker_emotion:
 		"screaming", "shocked":
 			return "shocked"
-		"scheming", "smug":
+		"angry":
+			return "nervous" if is_target else "annoyed"
+		"scheming", "smug", "suspicious":
 			return "annoyed"
-		"tired":
+		"sad", "tired":
 			return "tired"
+		"joyful", "laughing", "relieved":
+			return "joyful"
+		"confused":
+			return "confused"
 		_:
 			return "calm"
 
@@ -279,8 +285,16 @@ func _apply_reaction_face(actor: CharacterActor, speaker_emotion: String) -> voi
 	match speaker_emotion:
 		"screaming", "shocked":
 			actor.set_expression("shocked")
-		"scheming", "smug", "laughing":
+		"angry":
+			actor.set_expression("nervous")
+		"scheming", "smug", "laughing", "suspicious":
 			actor.set_expression("annoyed")
+		"sad", "embarrassed":
+			actor.set_expression("sad")
+		"confused":
+			actor.set_expression("confused")
+		"joyful", "relieved":
+			actor.set_expression("joyful")
 		_:
 			actor.set_expression("tired")
 

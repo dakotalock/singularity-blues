@@ -1,5 +1,7 @@
 from types import SimpleNamespace
-from orchestrator.gemini import GeminiClient, GeminiWriter, GEMINI_MODELS, model_cascade
+import pytest
+
+from orchestrator.gemini import GeminiClient, GeminiWriter, GEMINI_MODELS, WriterCascadeError, model_cascade
 
 
 def _client_with_generate(fn):
@@ -77,3 +79,64 @@ def test_gemini_writer_returns_refuse_dict_unvalidated():
 
     out = GeminiWriter(Fake()).write_scene("", {}, {}, "bad pitch", source="viewer", username="Alex")
     assert out == {"refuse": True, "note": "Not that one."}
+
+
+def _valid_scene(line: str = "A valid line."):
+    return {
+        "scene": "living_room",
+        "topic": "temporary",
+        "source": "viewer",
+        "beats": [
+            {"speaker": "reed", "line": line, "emotion": "confused", "animation": "double_take"},
+            {"speaker": "maris", "line": "Logged.", "emotion": "determined", "animation": "hands_on_hips"},
+            {"speaker": "jinx", "line": "Interesting.", "emotion": "suspicious", "animation": "lean_in"},
+            {"speaker": "quill", "line": "I object.", "emotion": "nervous", "animation": "facepalm"},
+        ],
+    }
+
+
+def test_writer_tries_next_model_after_refusal_and_validation_error(monkeypatch):
+    monkeypatch.setenv("GEMINI_MODELS", "writer-one,writer-two,writer-three")
+    calls = []
+
+    class Fake:
+        def generate_json_once(self, prompt, model, temperature=0.9):
+            calls.append(model)
+            if model == "writer-one":
+                return {"refuse": True, "note": "No."}
+            if model == "writer-two":
+                return _valid_scene("x" * 281)
+            return _valid_scene()
+
+    out = GeminiWriter(Fake()).write_scene("", {}, {}, "a difficult prompt", source="viewer", username="Alex")
+    assert calls == ["writer-one", "writer-two", "writer-three"]
+    assert out["topic"] == "a difficult prompt by Alex"
+    assert out["beats"][0]["animation"] == "double_take"
+
+
+def test_writer_accepts_refusal_only_after_all_three_refuse(monkeypatch):
+    monkeypatch.setenv("GEMINI_MODELS", "writer-one,writer-two,writer-three")
+    calls = []
+
+    class Fake:
+        def generate_json_once(self, prompt, model, temperature=0.9):
+            calls.append(model)
+            return {"refuse": True, "note": f"Declined by {model}."}
+
+    out = GeminiWriter(Fake()).write_scene("", {}, {}, "a difficult prompt", source="viewer")
+    assert calls == ["writer-one", "writer-two", "writer-three"]
+    assert out == {"refuse": True, "note": "Declined by writer-one."}
+
+
+def test_writer_raises_only_after_all_three_invalid(monkeypatch):
+    monkeypatch.setenv("GEMINI_MODELS", "writer-one,writer-two,writer-three")
+    calls = []
+
+    class Fake:
+        def generate_json_once(self, prompt, model, temperature=0.9):
+            calls.append(model)
+            return _valid_scene("x" * 281)
+
+    with pytest.raises(WriterCascadeError, match="all 3 writer attempts failed"):
+        GeminiWriter(Fake()).write_scene("", {}, {}, "a difficult prompt", source="viewer")
+    assert calls == ["writer-one", "writer-two", "writer-three"]
