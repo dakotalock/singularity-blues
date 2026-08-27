@@ -19,6 +19,10 @@ from orchestrator.playlist import absorb as playlist_absorb
 from orchestrator.playlist import pin as playlist_pin
 from orchestrator.voice_queue import HIGH, voice_episode
 
+from orchestrator.writer_cascade import install as _install_writer_cascade
+
+_install_writer_cascade()
+
 
 def _context(mem: Memory) -> dict[str, Any]:
     retrieved = mem.retrieve("household", limit=8)
