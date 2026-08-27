@@ -57,6 +57,11 @@ def init() -> bool:
     if conn is None:
         return False
     try:
+        try:
+            from orchestrator.credits import ensure_schema as _credits_schema
+            _credits_schema()
+        except Exception:
+            pass
         with conn:
             with conn.cursor() as cur:
                 cur.execute(f"CREATE SCHEMA IF NOT EXISTS {SCHEMA}")
