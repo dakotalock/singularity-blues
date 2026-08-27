@@ -16,6 +16,7 @@ from orchestrator import (
     SELECTOR_PROMPT_PATH,
     WRITER_PROMPT_PATH,
 )
+from orchestrator.denver import denver_logged_at
 from orchestrator.moderation import episode_title, scrub_slurs, wrap_untrusted
 from orchestrator.schemas import Condensation, SelectorChoice, validate_scene
 
@@ -367,9 +368,10 @@ class GeminiWriter(Writer):
                 {
                     "id": row.get("id"),
                     "episode_id": row.get("episode_id"),
-                    "created_at": row.get("created_at"),
                     "who": row.get("character"),
+                    "category": row.get("character"),
                     "fact": row.get("fact"),
+                    "logged_at": denver_logged_at(row.get("created_at")),
                 }
             )
         prompt = (
