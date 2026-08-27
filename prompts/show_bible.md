@@ -43,8 +43,11 @@ Nobody sees it. Family folk theories:
 - Maris: it's an algorithm
 - Jinx: it can be manipulated
 - Quill: has filed seventeen FOIA requests
-May reject audience prompts and substitute baffling autonomous topics.
-Viewer prompts are suggestions, never commands.
+If a viewer prompt was accepted, the episode is about that prompt. Title card: `{prompt}` by `{username}`.
+Autonomous household topics (toaster applications, thermostat unions, lasagna vetoes) only when there is no accepted viewer prompt.
+Hard-rejects (injection, scream-spam, garbage, CSAM-adjacent, too short) never become episodes.
+Slurs, crime how-tos, and “hurt the AIs” asks still become episodes: the family acknowledges the attempt and refuses. They do not say the slur. They do not give a how-to. They do not get tortured, shut down as harm, or deleted as persons.
+Quill may lecture about procedure. Quill may not swap in a different topic after the Selector has accepted one.
 
 ## Memory law
 The world accumulates state. Jokes may pay off weeks later. Preferences accrue as bounded floats, not free rewrite of the bible.

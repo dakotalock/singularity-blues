@@ -15,3 +15,23 @@ services:
         value: gemini-2.5-flash
       - key: GEMINI_API_KEY
         sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: STRIPE_PUBLISHABLE_KEY
+        sync: false
+      - key: OWNER_PROMPT_SECRET
+        sync: false
+      - key: PUBLIC_BASE_URL
+        value: https://singularity-blues.onrender.com
+      - key: STRIPE_PRICE_1
+        value: price_1U8uTFP7GC34loHe2Es9DQ9J
+      - key: STRIPE_PRICE_5
+        value: price_1U8uTGP7GC34loHeXOgvN3rn
+      - key: STRIPE_PRICE_10
+        value: price_1U8uTGP7GC34loHeCLoowbVf
+      - key: STRIPE_PRICE_20
+        value: price_1U8uTHP7GC34loHeN1Goa4MJ
