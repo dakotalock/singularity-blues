@@ -23,6 +23,9 @@ ENTER_WALK_SEC = 2.8
 LEAVE_SEC = 1.65
 LAST_BEAT_PAD = 1.0
 DURATION_MULT = 1.08
+# Recency-weighted reruns: recently aired episodes stay eligible but much less likely.
+RECENCY_HALF_LIFE_SEC = 3.0 * 3600.0
+RECENCY_WEIGHT_FLOOR = 0.05
 
 _lock = threading.RLock()
 _state: dict[str, Any] | None = None
@@ -105,8 +108,80 @@ def _duration(packet: dict[str, Any]) -> float:
     return max(8.0, total)
 
 
-def _random_index(packets: list[dict[str, Any]], avoid: int | None = None) -> int:
-    """Random rerun. Prefer real episodes over the seed when both exist."""
+def _packet_id(packet: dict[str, Any]) -> str | None:
+    raw = packet.get("show_episode_id", packet.get("episode_id"))
+    try:
+        return str(int(raw))
+    except (TypeError, ValueError):
+        return None
+
+
+def _parse_played_at(raw: Any) -> dict[str, float]:
+    if not isinstance(raw, dict):
+        return {}
+    out: dict[str, float] = {}
+    for key, value in raw.items():
+        try:
+            out[str(int(key))] = float(value)
+        except (TypeError, ValueError):
+            continue
+    return out
+
+
+def _lookup_played(played_at: dict[str, float] | None, packet: dict[str, Any]) -> float | None:
+    if not played_at:
+        return None
+    key = _packet_id(packet)
+    if key is None:
+        return None
+    if key in played_at:
+        try:
+            return float(played_at[key])
+        except (TypeError, ValueError):
+            return None
+    try:
+        ik = int(key)
+    except (TypeError, ValueError):
+        return None
+    if ik in played_at:
+        try:
+            return float(played_at[ik])
+        except (TypeError, ValueError):
+            return None
+    return None
+
+
+def _recency_weight(played_ts: float | None, now: float) -> float:
+    """Full weight if never played this session; exponential recency penalty otherwise."""
+    if played_ts is None:
+        return 1.0
+    age = max(0.0, float(now) - float(played_ts))
+    # Penalty decays over a few hours; just-played stays near the floor, never zero.
+    grown = 1.0 - math.exp(-age / RECENCY_HALF_LIFE_SEC)
+    return RECENCY_WEIGHT_FLOOR + (1.0 - RECENCY_WEIGHT_FLOOR) * grown
+
+
+def _mark_played(state: dict[str, Any], idx: int, now: float) -> None:
+    packets = state.get("packets") or []
+    if not packets:
+        return
+    key = _packet_id(packets[int(idx) % len(packets)])
+    if key is None:
+        return
+    played = state.get("played_at")
+    if not isinstance(played, dict):
+        played = {}
+        state["played_at"] = played
+    played[key] = float(now)
+
+
+def _random_index(
+    packets: list[dict[str, Any]],
+    avoid: int | None = None,
+    played_at: dict[str, float] | None = None,
+    now: float | None = None,
+) -> int:
+    """Recency-weighted random rerun. Prefer real episodes over the seed when both exist."""
     n = len(packets)
     if n <= 0:
         return 0
@@ -118,11 +193,22 @@ def _random_index(packets: list[dict[str, Any]], avoid: int | None = None) -> in
         narrowed = [i for i in pool if i != avoid]
         if narrowed:
             pool = narrowed
-    return _rng.choice(pool)
+    if len(pool) == 1:
+        return pool[0]
+    stamp = time.time() if now is None else float(now)
+    weights = [_recency_weight(_lookup_played(played_at, packets[i]), stamp) for i in pool]
+    return _rng.choices(pool, weights=weights, k=1)[0]
 
 
 def _empty_state() -> dict[str, Any]:
-    return {"packets": [], "index": 0, "airing": 0, "started_at": 0.0, "queued": []}
+    return {
+        "packets": [],
+        "index": 0,
+        "airing": 0,
+        "started_at": 0.0,
+        "queued": [],
+        "played_at": {},
+    }
 
 
 def _parse_queued(raw: Any) -> list[int]:
@@ -158,6 +244,7 @@ def _load() -> dict[str, Any]:
             "airing": int(raw.get("airing") or 0),
             "started_at": float(raw.get("started_at") or 0.0),
             "queued": _parse_queued(raw.get("queued")),
+            "played_at": _parse_played_at(raw.get("played_at")),
         }
         if _state["packets"]:
             _state["index"] %= len(_state["packets"])
@@ -169,6 +256,10 @@ def _load() -> dict[str, Any]:
         _state["queued"] = []
     else:
         _state["queued"] = _parse_queued(_state.get("queued"))
+    if not isinstance(_state.get("played_at"), dict):
+        _state["played_at"] = {}
+    else:
+        _state["played_at"] = _parse_played_at(_state.get("played_at"))
     return _state
 
 
@@ -221,6 +312,7 @@ def _advance_if_due(state: dict[str, Any], now: float) -> None:
     if started <= 0:
         state["started_at"] = now
         state["index"] = idx
+        _mark_played(state, idx, now)
         return
     limit = _duration(packets[idx]) + GRACE_SEC
     if now - started < limit:
@@ -235,14 +327,21 @@ def _advance_if_due(state: dict[str, Any], now: float) -> None:
         if 0 <= cand < n and cand != idx:
             nxt = cand
             break
+    _mark_played(state, idx, now)
     if nxt is not None:
         state["index"] = nxt
         state["queued"] = queued
     else:
-        state["index"] = _random_index(packets, avoid=idx)
+        state["index"] = _random_index(
+            packets,
+            avoid=idx,
+            played_at=state.get("played_at") or {},
+            now=now,
+        )
         state["queued"] = []
     state["airing"] = int(state["airing"] or 0) + 1
     state["started_at"] = now
+    _mark_played(state, state["index"], now)
     _save(state)
     _publish(state)
 
@@ -303,6 +402,7 @@ def pin(packet: dict[str, Any]) -> dict[str, Any]:
         state["airing"] = int(state["airing"] or 0) + 1
         state["started_at"] = now
         state["queued"] = []
+        _mark_played(state, new_idx, now)
         _save(state)
         try:
             from orchestrator import archive
@@ -387,9 +487,15 @@ def ensure_voiced_boot(mem) -> dict[str, Any]:
         with _lock:
             state = _load()
             if state["packets"]:
-                state["index"] = _random_index(state["packets"])
+                now = time.time()
+                state["index"] = _random_index(
+                    state["packets"],
+                    played_at=state.get("played_at") or {},
+                    now=now,
+                )
                 state["airing"] = max(1, int(state["airing"] or 0) + 1)
-                state["started_at"] = time.time()
+                state["started_at"] = now
+                _mark_played(state, state["index"], now)
                 _save(state)
                 published = _publish(state)
         fresh: set[int] = set()
@@ -446,9 +552,15 @@ def ensure_voiced_boot(mem) -> dict[str, Any]:
     with _lock:
         state = _load()
         if state["packets"]:
-            state["index"] = _random_index(state["packets"])
+            now = time.time()
+            state["index"] = _random_index(
+                state["packets"],
+                played_at=state.get("played_at") or {},
+                now=now,
+            )
             state["airing"] = max(1, int(state["airing"] or 0) + 1)
-            state["started_at"] = time.time()
+            state["started_at"] = now
+            _mark_played(state, state["index"], now)
             _save(state)
             return _publish(state)
 
