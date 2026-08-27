@@ -84,3 +84,4 @@ def test_spend_then_lookup_by_key_sees_remaining(monkeypatch, tmp_path):
     assert bal["credits"] == 3
     assert bal["ltm_pins"] == 0
     assert ensure_recovery_key("buyer-spend-key") == key
+
