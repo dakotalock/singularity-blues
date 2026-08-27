@@ -231,4 +231,20 @@ def register(app):
         pid = mem.enqueue_prompt(check.text, status="pending")
         return {"id": pid, "status": "pending", "reason": check.reason, "verdict": check.verdict}
 
+    def _stage_html() -> str:
+        path = m.STAGE_DIR / "index.html"
+        html = path.read_text(encoding="utf-8") if path.is_file() else ""
+        tag = '<script src="/stage/private-showing.js"></script>'
+        if tag not in html:
+            html = html.replace("</body>", tag + "\n</body>", 1) if "</body>" in html else html + tag
+        return html
+
+    @app.get("/stage/", include_in_schema=False)
+    def stage_slash():
+        return HTMLResponse(_stage_html())
+
+    @app.get("/stage/index.html", include_in_schema=False)
+    def stage_index_html():
+        return HTMLResponse(_stage_html())
+
     register_episode(app)
