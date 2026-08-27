@@ -6,6 +6,7 @@ import json
 import random
 import threading
 import time
+import wave
 from copy import deepcopy
 from pathlib import Path
 from typing import Any
@@ -14,7 +15,10 @@ from orchestrator import DATA_DIR, NOW_PLAYING_PATH, ROOT, TTS_DIR
 from orchestrator.tts import render, write_now_playing
 
 PLAYLIST_PATH = DATA_DIR / "playlist.json"
-GRACE_SEC = 1.75
+GRACE_SEC = 3.0
+HOLD_SEC = 0.35
+ENTER_WALK_SEC = 2.0
+LEAVE_SEC = 1.5
 
 _lock = threading.RLock()
 _state: dict[str, Any] | None = None
@@ -39,12 +43,47 @@ def _packet_wav_ok(packet: dict[str, Any]) -> bool:
     return True
 
 
+def _wav_seconds(path: Path | str) -> float | None:
+    try:
+        with wave.open(str(path), "rb") as wf:
+            frames = wf.getnframes()
+            rate = wf.getframerate()
+            if rate <= 0:
+                return None
+            return frames / float(rate)
+    except Exception:
+        return None
+
+
+def _beat_audio_path(audio: str) -> Path | None:
+    if not audio:
+        return None
+    name = Path(audio).name
+    for candidate in (TTS_DIR / name, ROOT / audio):
+        if candidate.is_file():
+            return candidate
+    return None
+
+
 def _duration(packet: dict[str, Any]) -> float:
     total = 0.0
     for beat in packet.get("beats") or []:
-        total += float(beat.get("duration_sec") or 1.5)
+        audio = str(beat.get("audio") or "")
+        wav_len = None
+        path = _beat_audio_path(audio)
+        if path is not None:
+            wav_len = _wav_seconds(path)
+        if wav_len is not None:
+            total += wav_len
+        else:
+            total += float(beat.get("duration_sec") or 1.5)
+        total += HOLD_SEC
+        anim = str(beat.get("animation") or "").lower()
+        if anim in ("enter", "walking"):
+            total += ENTER_WALK_SEC
+        elif anim == "leave":
+            total += LEAVE_SEC
     return max(8.0, total)
-
 
 
 def _random_index(packets: list[dict[str, Any]], avoid: int | None = None) -> int:
@@ -64,7 +103,16 @@ def _random_index(packets: list[dict[str, Any]], avoid: int | None = None) -> in
 
 
 def _empty_state() -> dict[str, Any]:
-    return {"packets": [], "index": 0, "airing": 0, "started_at": 0.0}
+    return {"packets": [], "index": 0, "airing": 0, "started_at": 0.0, "queued": None}
+
+
+def _parse_queued(raw: Any) -> int | None:
+    if raw is None or raw is False:
+        return None
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        return None
 
 
 def _load() -> dict[str, Any]:
@@ -82,6 +130,7 @@ def _load() -> dict[str, Any]:
             "index": int(raw.get("index") or 0),
             "airing": int(raw.get("airing") or 0),
             "started_at": float(raw.get("started_at") or 0.0),
+            "queued": _parse_queued(raw.get("queued")),
         }
         if _state["packets"]:
             _state["index"] %= len(_state["packets"])
@@ -89,6 +138,8 @@ def _load() -> dict[str, Any]:
             _state["index"] = 0
     else:
         _state = _empty_state()
+    if "queued" not in _state:
+        _state["queued"] = None
     return _state
 
 
@@ -121,6 +172,17 @@ def _publish(state: dict[str, Any]) -> dict[str, Any]:
     return packet
 
 
+def _playing(state: dict[str, Any], now: float) -> bool:
+    packets = state["packets"]
+    if not packets:
+        return False
+    started = float(state.get("started_at") or 0.0)
+    if started <= 0:
+        return False
+    idx = int(state.get("index") or 0) % len(packets)
+    return now - started < _duration(packets[idx]) + GRACE_SEC
+
+
 def _advance_if_due(state: dict[str, Any], now: float) -> None:
     packets = state["packets"]
     if not packets:
@@ -134,7 +196,14 @@ def _advance_if_due(state: dict[str, Any], now: float) -> None:
     limit = _duration(packets[idx]) + GRACE_SEC
     if now - started < limit:
         return
-    state["index"] = _random_index(packets, avoid=idx)
+    queued = state.get("queued")
+    n = len(packets)
+    if isinstance(queued, int) and 0 <= queued < n:
+        state["index"] = queued
+        state["queued"] = None
+    else:
+        state["index"] = _random_index(packets, avoid=idx)
+        state["queued"] = None
     state["airing"] = int(state["airing"] or 0) + 1
     state["started_at"] = now
     _save(state)
@@ -158,19 +227,30 @@ def pin(packet: dict[str, Any]) -> dict[str, Any]:
         stored["show_episode_id"] = stored.get("episode_id")
         packets = state["packets"]
         real_id = stored.get("episode_id")
-        replaced = False
+        new_idx: int | None = None
         if real_id is not None:
             for i, existing in enumerate(packets):
                 if existing.get("episode_id") == real_id:
                     packets[i] = stored
-                    state["index"] = i
-                    replaced = True
+                    new_idx = i
                     break
-        if not replaced:
+        if new_idx is None:
             packets.append(stored)
-            state["index"] = len(packets) - 1
+            new_idx = len(packets) - 1
+        now = time.time()
+        if _playing(state, now):
+            state["queued"] = new_idx
+            _save(state)
+            try:
+                from orchestrator import archive
+                archive.upsert_episode(stored)
+            except Exception:
+                pass
+            return _serve_packet(state)
+        state["index"] = new_idx
         state["airing"] = int(state["airing"] or 0) + 1
-        state["started_at"] = time.time()
+        state["started_at"] = now
+        state["queued"] = None
         _save(state)
         try:
             from orchestrator import archive
