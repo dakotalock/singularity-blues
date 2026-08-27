@@ -48,7 +48,7 @@ def _heuristic_pick(kept: list[dict[str, Any]], context: dict[str, Any]) -> Sele
     return SelectorChoice(
         source="viewer",
         topic=best["text"][:280],
-        reason="heuristic: novel enough and in-character",
+        reason="accepted viewer prompt",
     )
 
 
@@ -59,8 +59,8 @@ def choose(
     already_filtered: bool = False,
 ) -> SelectorChoice:
     """
-    Prefilter (unless already done), then Gemini or heuristic.
-    ALWAYS autonomous if the queue is scream/spam/empty.
+    Prefilter (unless already done). Accepted viewer prompts MUST become the episode.
+    Autonomous only when the queue is empty / hard-rejected.
     """
     context = context or {}
     if isinstance(prompts, FilterResult):
@@ -74,18 +74,19 @@ def choose(
         reason = "queue empty or scream/spam; rejecting humanity"
         return pick_autonomous(context, reason=reason)
 
+    # An accepted prompt is a command from the Selector: exact text, source viewer.
+    # LLM may rank among kept prompts but may not invent an autonomous topic.
     client = get_gemini_client()
-    if client is not None:
+    if client is not None and len(filtered.kept) > 1:
         try:
             topics = [p["text"] for p in filtered.kept]
             choice = llm_select(client, topics, context)
-            # If the model tries to pick a viewer topic we already rejected, fall back.
-            if choice.source == "viewer" and choice.topic not in topics:
-                # Allow close-enough: still a viewer-sourced rewrite only if it looks like a kept prompt.
-                lowered = choice.topic.lower()
-                if not any(lowered in (t.lower()) or t.lower() in lowered for t in topics):
-                    return _heuristic_pick(filtered.kept, context)
-            return choice
+            exact = next((t for t in topics if t == choice.topic), None)
+            if exact is None:
+                lowered = (choice.topic or "").lower()
+                exact = next((t for t in topics if t.lower() in lowered or lowered in t.lower()), None)
+            if exact:
+                return SelectorChoice(source="viewer", topic=exact[:280], reason=choice.reason or "accepted viewer prompt")
         except Exception:
             pass
     return _heuristic_pick(filtered.kept, context)

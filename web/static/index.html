@@ -9,59 +9,9 @@
     html, body { margin:0; height:100%; background:#07090f; color:#d6e4ff;
       font: 16px/1.4 ui-sans-serif, system-ui, sans-serif; overflow:hidden; }
     #stage { position:absolute; inset:0; border:0; width:100%; height:100%; background:#07090f; }
-    #bar { position:absolute; left:12px; right:12px; top:12px; z-index:5;
-      display:flex; gap:8px; align-items:center; pointer-events:none; }
-    #bar > * { pointer-events:auto; }
-    button { font-size:1rem; background:#3d7dff; color:#fff; border:0; border-radius:12px;
-      padding:12px 16px; cursor:pointer; flex: 0 0 auto; box-shadow:0 8px 24px rgba(0,0,0,.35); }
-    button:disabled { opacity:.55; cursor:wait; }
-    #prompt { flex:1; min-width:0; background:#151b2ecc; color:#e8f0ff; border:1px solid #2a3a60;
-      border-radius:12px; padding:10px 12px; }
-    #status { position:absolute; left:12px; right:12px; bottom:12px; z-index:5;
-      color:#8aa0c8; font-size:.9rem; text-shadow:0 1px 2px #000; pointer-events:none; }
-    .ok { color:#7dffb3 !important; }
-    .bad { color:#ff8d8d !important; }
   </style>
 </head>
 <body>
   <iframe id="stage" src="/stage/index.html" allow="autoplay; fullscreen" title="Living room"></iframe>
-  <div id="bar">
-    <button id="gen">Generate episode</button>
-    <input id="prompt" placeholder="Optional: suggest a scene" />
-  </div>
-  <p id="status"></p>
-<script>
-const status = document.getElementById('status');
-document.getElementById('gen').onclick = async () => {
-  const btn = document.getElementById('gen');
-  const text = document.getElementById('prompt').value.trim();
-  btn.disabled = true;
-  status.className = '';
-  status.textContent = 'Gemini is writing…';
-  try {
-    const r = await fetch('/episode', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(text ? {topic: text} : {})
-    });
-    const data = await r.json();
-    if (!r.ok) {
-      status.className = 'bad';
-      status.textContent = (data.detail || r.statusText || 'failed');
-      return;
-    }
-    status.className = 'ok';
-    status.textContent = 'ep ' + data.episode_id + ' · living room will pick it up';
-  } catch (err) {
-    status.className = 'bad';
-    status.textContent = String(err);
-  } finally {
-    btn.disabled = false;
-  }
-};
-fetch('/healthz').then(r => r.json()).then(h => {
-  if (!h.stage) status.textContent = 'Stage export is still assembling.';
-}).catch(() => {});
-</script>
 </body>
 </html>

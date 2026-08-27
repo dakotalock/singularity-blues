@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>House</title>
+  <style>
+    :root { color-scheme: dark; }
+    body { margin:0; min-height:100%; background:#07090f; color:#d6e4ff;
+      font: 16px/1.4 ui-sans-serif, system-ui, sans-serif; padding:24px; }
+    input, button { font-size:16px; padding:10px 12px; border-radius:12px; }
+    input { background:#151b2e; color:#e8f0ff; border:1px solid #2a3a60; width:min(280px, 100%); }
+    button { background:#3d7dff; color:#fff; border:0; margin-top:8px; }
+    p { color:#8aa0c8; }
+  </style>
+</head>
+<body>
+  <form id="f">
+    <input id="secret" type="password" autocomplete="current-password" />
+    <div><button type="submit">Unlock</button></div>
+  </form>
+  <p id="out"></p>
+  <script>
+  document.getElementById('f').onsubmit = async (e) => {
+    e.preventDefault();
+    const secret = document.getElementById('secret').value;
+    const r = await fetch('/unlock', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({secret})
+    });
+    const out = document.getElementById('out');
+    if (r.ok) { out.textContent = 'ok'; location.href = '/stage/'; }
+    else { out.textContent = 'no'; }
+  };
+  </script>
+</body>
+</html>

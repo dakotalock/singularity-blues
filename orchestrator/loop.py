@@ -9,9 +9,9 @@ import time
 from typing import Any
 
 from orchestrator import DATA_DIR, NOW_PLAYING_PATH, ROOT, load_dotenv
-from orchestrator.gemini import get_condenser, get_writer, load_bible
+from orchestrator.gemini import finalize_scene, get_condenser, get_writer, load_bible
 from orchestrator.memory import Memory
-from orchestrator.moderation import prefilter
+from orchestrator.moderation import episode_title, prefilter, scrub_slurs
 from orchestrator.schemas import validate_scene
 from orchestrator.seed import seed
 from orchestrator.selector import choose
@@ -35,6 +35,11 @@ def run_episode(
     topic: str | None = None,
     once: bool = False,
     progress=None,
+    username: str | None = None,
+    paid: bool = False,
+    refuse_reason: str | None = None,
+    ltm_pin: bool = False,
+    title: str | None = None,
 ) -> dict[str, Any]:
     """
     1 collect prompts  2 prefilter  3 selector.choose
@@ -44,10 +49,12 @@ def run_episode(
     source = "autonomous"
     used_ids: list[int] = []
     rejected_ids: list[tuple[int, str]] = []
+    raw_topic = (topic or "").strip()
 
-    if topic:
-        # Explicit --topic ignores the queue.
+    if raw_topic:
+        # Explicit topic from the stage UI ignores the queue and MUST be the episode.
         source = "seed" if once else "viewer"
+        topic = raw_topic
     else:
         prompts = mem.pending_prompts()
         filtered = prefilter(prompts, recent_texts=mem.recent_prompt_texts())
@@ -61,26 +68,40 @@ def run_episode(
             for item in filtered.kept:
                 if item.get("text") == topic and item.get("id") is not None:
                     used_ids.append(int(item["id"]))
+                    if not refuse_reason:
+                        refuse_reason = item.get("reason") or None
                     break
             else:
                 used_ids = [int(p["id"]) for p in filtered.kept if p.get("id") is not None][:1]
 
-    if once and (source == "seed" or "toaster" in (topic or "").lower()):
+    if once and not raw_topic and (source == "seed" or "toaster" in (topic or "").lower()):
         source = "seed" if not topic else source
         if not topic:
             topic = "Reed applies for toaster status"
             source = "seed"
 
     topic = (topic or "Reed applies for toaster status").strip()[:280]
-    retrieved = mem.retrieve(topic)
+    topic = scrub_slurs(topic)
+    heading = title or episode_title(topic, username, refuse_reason=refuse_reason)
+    retrieved = mem.retrieve(heading)
     bible = load_bible()
     writer = get_writer()
     if progress:
         progress({"phase": "writing", "beat": 0, "beats": 0, "speaker": ""})
-    scene = writer.write_scene(bible, retrieved, retrieved, topic, source=source)
-    scene = validate_scene(scene).model_dump()
+    scene = writer.write_scene(
+        bible,
+        retrieved,
+        retrieved,
+        topic,
+        source=source,
+        username=username,
+        paid=paid,
+        refuse_reason=refuse_reason,
+        title=heading,
+    )
+    scene = finalize_scene(scene, title=heading, source=source, username=username, paid=paid)
 
-    episode_id = mem.insert_episode(topic, scene.get("source") or source, scene)
+    episode_id = mem.insert_episode(heading, scene.get("source") or source, scene)
     packet = render(scene, episode_id, progress=progress)
     write_now_playing(packet)
     playlist_pin(packet)
@@ -90,13 +111,15 @@ def run_episode(
     condenser = get_condenser()
     condensation = condenser.condense(scene)
     mem.commit(condensation, episode_id=episode_id)
+    if ltm_pin and not refuse_reason:
+        mem.pin_episode(episode_id)
 
     if used_ids:
         mem.mark_prompts(used_ids, "used")
     for pid, reason in rejected_ids:
         mem.mark_prompts([pid], "rejected", reason)
 
-    print(f"episode_id={episode_id} topic={topic!r} source={scene.get('source') or source}")
+    print(f"episode_id={episode_id} topic={heading!r} source={scene.get('source') or source}")
     print(f"now_playing={NOW_PLAYING_PATH} beats={len(packet['beats'])}")
     return packet
 
