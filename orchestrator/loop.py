@@ -16,7 +16,8 @@ from orchestrator.schemas import validate_scene
 from orchestrator.seed import seed
 from orchestrator.selector import choose
 from orchestrator.playlist import pin as playlist_pin
-from orchestrator.tts import render, write_now_playing
+from orchestrator.tts import write_now_playing
+from orchestrator.voice_queue import HIGH, voice_episode
 
 
 def _context(mem: Memory) -> dict[str, Any]:
@@ -44,7 +45,7 @@ def run_episode(
     """
     1 collect prompts  2 prefilter  3 selector.choose
     4 memory.retrieve  5 write_scene  6 validate_schema
-    7 tts.render  8 sidecar now_playing.json  9 memory.commit  10 print
+    7 voice_queue.voice_episode  8 sidecar now_playing.json  9 memory.commit  10 print
     """
     source = "autonomous"
     used_ids: list[int] = []
@@ -102,7 +103,13 @@ def run_episode(
     scene = finalize_scene(scene, title=heading, source=source, username=username, paid=paid)
 
     episode_id = mem.insert_episode(heading, scene.get("source") or source, scene)
-    packet = render(scene, episode_id, progress=progress)
+    packet = voice_episode(
+        scene,
+        episode_id,
+        priority=HIGH,
+        progress=progress,
+        source=scene.get("source") or source,
+    )
     write_now_playing(packet)
     playlist_pin(packet)
     if progress:
