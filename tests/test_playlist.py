@@ -134,6 +134,25 @@ def test_random_reruns_prefer_non_seed(tmp_path, monkeypatch):
     assert set(sources) <= {"viewer", "autonomous"}
 
 
+def test_recency_weighted_random_prefers_unplayed(tmp_path, monkeypatch):
+    """After A airs, B is chosen more often than A (recency-weighted, never-played full weight)."""
+    pl = _reset(monkeypatch, tmp_path)
+    packets = [
+        _packet(tmp_path, 10, "episode A", source="viewer"),
+        _packet(tmp_path, 11, "episode B", source="viewer"),
+    ]
+    now = 1_700_000_000.0
+    # A just played many times / is the last-played; B has never aired this session.
+    played_at = {"10": now}
+    counts = {10: 0, 11: 0}
+    trials = 400
+    for _ in range(trials):
+        idx = pl._random_index(packets, played_at=played_at, now=now)
+        counts[packets[idx]["episode_id"]] += 1
+    assert counts[11] > counts[10]
+    assert counts[11] > trials * 0.7
+
+
 def test_boot_picks_random_non_seed(tmp_path, monkeypatch):
     pl = _reset(monkeypatch, tmp_path)
     monkeypatch.setattr("orchestrator.archive.init", lambda: False)
@@ -332,3 +351,12 @@ def test_packet_needs_revoice_unhashed_empty_and_hashed(tmp_path, monkeypatch):
     assert pl.packet_needs_revoice(no_beats) is True
     missing_beats = {"episode_id": 1}
     assert pl.packet_needs_revoice(missing_beats) is True
+
+def test_played_at_persists_on_playlist_state(tmp_path, monkeypatch):
+    pl = _reset(monkeypatch, tmp_path)
+    pl.pin(_packet(tmp_path, 21, "alpha", source="viewer"))
+    assert "21" in (pl._state.get("played_at") or {})
+    pl._state = None
+    state = pl._load()
+    assert "21" in (state.get("played_at") or {})
+
