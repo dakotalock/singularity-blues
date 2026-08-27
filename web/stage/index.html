@@ -132,22 +132,32 @@ body.broadcast #player-controls {
 #player-controls {
 	position: absolute;
 	z-index: 35;
-	top: max(78px, env(safe-area-inset-top, 0px));
-	right: max(14px, env(safe-area-inset-right, 0px));
+	top: auto;
+	left: auto;
+	bottom: max(12px, env(safe-area-inset-bottom, 0px));
+	right: max(12px, env(safe-area-inset-right, 0px));
 	display: flex;
-	gap: 8px;
+	gap: 6px;
 	align-items: center;
-	font: 600 14px/1.2 ui-sans-serif, system-ui, sans-serif;
+	font: 600 16px/1 ui-sans-serif, system-ui, sans-serif;
 	pointer-events: auto;
 }
 
 .player-control {
 	appearance: none;
+	box-sizing: border-box;
+	width: 36px;
+	height: 36px;
+	padding: 8px;
 	border: 1px solid rgba(255,255,255,.28);
-	border-radius: 999px;
+	border-radius: 50%;
 	background: rgba(10,15,28,.88);
 	color: #eef5ff;
-	padding: 10px 13px;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 16px;
+	line-height: 1;
 	box-shadow: 0 5px 18px rgba(0,0,0,.35);
 	cursor: pointer;
 	backdrop-filter: blur(8px);
@@ -181,12 +191,10 @@ body.player-expanded #player-shell {
 
 @media (max-width: 640px) {
 	#player-controls {
-		top: max(70px, env(safe-area-inset-top, 0px));
-		right: max(8px, env(safe-area-inset-right, 0px));
+		bottom: max(12px, env(safe-area-inset-bottom, 0px));
+		right: max(12px, env(safe-area-inset-right, 0px));
 		gap: 6px;
 	}
-	.player-control { padding: 9px 11px; font-size: 12px; }
-	#sitcom-volume { max-width: 190px; }
 }
 
 #sitcom-bar {
@@ -335,8 +343,8 @@ body.player-expanded #player-shell {
 				Your browser does not support the canvas tag.
 			</canvas>
 			<div id="player-controls" aria-label="Player controls">
-				<button type="button" id="sitcom-volume" class="player-control" data-state="muted" aria-pressed="false">🔇 Muted — tap for sound</button>
-				<button type="button" id="sitcom-fullscreen" class="player-control" aria-pressed="false">⛶ Full screen</button>
+				<button type="button" id="sitcom-volume" class="player-control" data-state="muted" aria-pressed="false" aria-label="Unmute the show" title="Unmute the show">🔇</button>
+				<button type="button" id="sitcom-fullscreen" class="player-control" aria-pressed="false" aria-label="Full screen" title="Full screen">⛶</button>
 			</div>
 			<div id="status">
 				<img id="status-splash" class="show-image--true fullsize--true use-filter--true" src="index.png" alt="">
@@ -511,14 +519,19 @@ const engine = new Engine(GODOT_CONFIG);
 		const isOn = !!ctx && ctx.state === 'running';
 		volumeButton.dataset.state = isOn ? 'on' : 'muted';
 		volumeButton.setAttribute('aria-pressed', isOn ? 'true' : 'false');
-		volumeButton.textContent = isOn ? '🔊 Sound on' : '🔇 Muted — tap for sound';
+		volumeButton.textContent = isOn ? '🔊' : '🔇';
 		volumeButton.setAttribute('aria-label', isOn ? 'Mute the show' : 'Unmute the show');
+		volumeButton.title = isOn ? 'Mute the show' : 'Unmute the show';
 	}
 
 	async function setAudioEnabled(enabled) {
 		const ctx = audioContext();
 		if (!ctx) {
-			if (volumeButton) volumeButton.textContent = '🔇 Player loading — tap again';
+			if (volumeButton) {
+				volumeButton.textContent = '🔇';
+				volumeButton.setAttribute('aria-label', 'Player loading — tap again');
+				volumeButton.title = 'Player loading — tap again';
+			}
 			return false;
 		}
 		try {
@@ -552,8 +565,10 @@ const engine = new Engine(GODOT_CONFIG);
 	function refreshFullscreenButton() {
 		if (!fullscreenButton) return;
 		const isFull = !!fullscreenElement() || document.body.classList.contains('player-expanded');
-		fullscreenButton.textContent = isFull ? '⤢ Exit full screen' : '⛶ Full screen';
+		fullscreenButton.textContent = isFull ? '⤢' : '⛶';
 		fullscreenButton.setAttribute('aria-pressed', isFull ? 'true' : 'false');
+		fullscreenButton.setAttribute('aria-label', isFull ? 'Exit full screen' : 'Full screen');
+		fullscreenButton.title = isFull ? 'Exit full screen' : 'Full screen';
 		setTimeout(fitStage, 30);
 	}
 
