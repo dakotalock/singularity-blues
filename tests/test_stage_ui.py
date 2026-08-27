@@ -47,3 +47,22 @@ def test_storage_mentions_recovery_key_and_restore():
     assert 'id="sitcom-recovery-restore"' in html
     assert "How prompts are stored" in html
     assert '"index.pck":130512' in html
+
+
+def test_mobile_controls_scroll_without_moving_the_player():
+    html = (ROOT / "web" / "stage" / "index.html").read_text(encoding="utf-8")
+    assert "#sitcom-chrome {" in html
+    assert "overflow-y: auto" in html
+    assert "touch-action: pan-y" in html
+    assert "#player-shell {" in html and "touch-action: none" in html
+    assert "max-height: min(52dvh, 520px)" in html
+    assert 'id="sitcom-chrome-inner"' in html
+
+
+def test_secondary_tools_use_compact_disclosure_panels():
+    html = (ROOT / "web" / "stage" / "index.html").read_text(encoding="utf-8")
+    for control in ("sitcom-buy-toggle", "sitcom-queue-toggle", "sitcom-storage-toggle"):
+        assert f'id="{control}"' in html
+    assert "const panelPairs = [" in html
+    assert "activePanel.scrollIntoView" in html
+    assert 'id="sitcom-recovery-copy"' in html

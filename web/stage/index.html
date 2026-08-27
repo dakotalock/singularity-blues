@@ -18,7 +18,7 @@ body {
 	color: white;
 	background-color: black;
 	overflow: hidden;
-	touch-action: none;
+	touch-action: pan-y;
 }
 
 #player-shell {
@@ -29,6 +29,7 @@ body {
 	width: 100%;
 	background: #000;
 	overflow: hidden;
+	touch-action: none;
 }
 
 #canvas {
@@ -114,11 +115,38 @@ body {
 	flex: 0 0 auto;
 	position: relative;
 	z-index: 30;
-	background: #0b1020;
-	padding-top: max(10px, env(safe-area-inset-top, 0px));
-	padding-right: max(12px, env(safe-area-inset-right, 0px));
-	padding-bottom: 10px;
-	padding-left: max(12px, env(safe-area-inset-left, 0px));
+	box-sizing: border-box;
+	max-height: min(52dvh, 520px);
+	overflow-x: hidden;
+	overflow-y: auto;
+	overscroll-behavior-y: contain;
+	touch-action: pan-y;
+	-webkit-overflow-scrolling: touch;
+	scrollbar-color: #52617b #121824;
+	scrollbar-width: thin;
+	background:
+		linear-gradient(180deg, rgba(23, 30, 43, .98), rgba(13, 18, 28, .98));
+	border-bottom: 1px solid rgba(199, 176, 128, .22);
+	box-shadow: 0 14px 36px rgba(0, 0, 0, .38);
+	color: #f4f0e8;
+	font: 14px/1.4 Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+#sitcom-chrome::-webkit-scrollbar { width: 6px; }
+#sitcom-chrome::-webkit-scrollbar-track { background: #121824; }
+#sitcom-chrome::-webkit-scrollbar-thumb {
+	background: #52617b;
+	border-radius: 999px;
+}
+
+#sitcom-chrome-inner {
+	box-sizing: border-box;
+	width: min(100%, 1120px);
+	margin: 0 auto;
+	padding-top: max(12px, env(safe-area-inset-top, 0px));
+	padding-right: max(16px, env(safe-area-inset-right, 0px));
+	padding-bottom: 16px;
+	padding-left: max(16px, env(safe-area-inset-left, 0px));
 }
 
 body.broadcast #sitcom-chrome {
@@ -229,144 +257,385 @@ body.player-expanded #player-shell {
 }
 
 
-#sitcom-bar {
+.sitcom-topline {
 	display: flex;
-	gap: 8px;
 	align-items: center;
-	font: 16px/1.3 ui-sans-serif, system-ui, sans-serif;
+	justify-content: space-between;
+	gap: 16px;
+	margin-bottom: 10px;
 }
 
-#sitcom-gen {
-	font-size: 16px; background: #3d7dff; color: #fff; border: 0;
-	border-radius: 12px; padding: 12px 14px; cursor: pointer;
-	flex: 0 0 auto; box-shadow: 0 8px 24px rgba(0,0,0,.35);
+.sitcom-identity {
+	display: flex;
+	align-items: center;
+	gap: 9px;
+	min-width: 0;
+	color: #f7f2e8;
+	font-size: 12px;
+	font-weight: 700;
+	letter-spacing: .09em;
+	text-transform: uppercase;
+	white-space: nowrap;
 }
-#sitcom-gen:disabled { opacity: .55; }
-#sitcom-prompt {
-	box-sizing: border-box; width: 100%;
-	flex: 1; min-width: 0; font-size: 16px !important;
-	background: #151b2ecc; color: #e8f0ff; border: 1px solid #2a3a60;
-	border-radius: 12px; padding: 10px 12px;
+
+.sitcom-live-dot {
+	width: 7px;
+	height: 7px;
+	flex: 0 0 auto;
+	border-radius: 50%;
+	background: #ee604c;
+	box-shadow: 0 0 0 4px rgba(238, 96, 76, .12);
 }
+
+.sitcom-divider { color: #52617b; }
+.sitcom-title { overflow: hidden; text-overflow: ellipsis; }
+
 #sitcom-set {
-	flex: 0 1 auto;
 	margin: 0;
-	color: #c9b48a;
-	font: 13px/1.3 ui-sans-serif, system-ui, sans-serif;
-	letter-spacing: 0.08em;
+	flex: 0 0 auto;
+	color: #d7c39a;
+	font-size: 11px;
+	font-weight: 700;
+	letter-spacing: .12em;
 	text-transform: uppercase;
 	pointer-events: none;
 	white-space: nowrap;
 }
-#sitcom-status {
-	margin: 8px 0 0;
-	min-height: 1.3em;
-	color: #8aa0c8;
-	font: 16px/1.3 ui-sans-serif, system-ui, sans-serif;
+
+#sitcom-compose {
+	padding: 12px;
+	background: rgba(255, 255, 255, .035);
+	border: 1px solid rgba(255, 255, 255, .09);
+	border-radius: 12px;
+}
+
+.sitcom-compose-heading {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 12px;
+	margin-bottom: 8px;
+}
+
+.sitcom-compose-heading h1 {
+	margin: 0;
+	font-family: Georgia, "Times New Roman", serif;
+	font-size: clamp(18px, 2vw, 22px);
+	font-weight: 500;
+	letter-spacing: -.01em;
+}
+
+.sitcom-compose-heading p {
+	margin: 0;
+	color: #8290a7;
+	font-size: 11px;
+	letter-spacing: .08em;
+	text-transform: uppercase;
+}
+
+#sitcom-bar {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	gap: 8px;
+	align-items: stretch;
+}
+
+#sitcom-prompt,
+#sitcom-name,
+#sitcom-recovery-input {
+	box-sizing: border-box;
+	min-width: 0;
+	font: 16px/1.25 Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+	background: #0e1420;
+	color: #f6f3ec;
+	border: 1px solid #354158;
+	border-radius: 8px;
+	outline: none;
+	transition: border-color .16s ease, box-shadow .16s ease;
+}
+
+#sitcom-prompt:focus,
+#sitcom-name:focus,
+#sitcom-recovery-input:focus {
+	border-color: #8ba9db;
+	box-shadow: 0 0 0 3px rgba(139, 169, 219, .14);
+}
+
+#sitcom-prompt { width: 100%; padding: 11px 12px; }
+#sitcom-name { width: min(100%, 220px); padding: 8px 10px; }
+
+#sitcom-gen,
+.sitcom-buy-btn,
+#sitcom-recovery-restore,
+#sitcom-recovery-copy,
+.sitcom-tool-button {
+	appearance: none;
+	border: 0;
+	font: inherit;
+	cursor: pointer;
+}
+
+#sitcom-gen {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 9px;
+	min-height: 44px;
+	padding: 10px 15px;
+	border-radius: 8px;
+	background: #e6d4aa;
+	color: #171c24;
+	font-size: 13px;
+	font-weight: 800;
+	letter-spacing: .02em;
+	box-shadow: 0 6px 18px rgba(0, 0, 0, .24);
+}
+
+#sitcom-gen:hover { background: #f2e2bc; }
+#sitcom-gen:disabled { opacity: .48; cursor: wait; }
+
+.sitcom-meta-row {
+	display: flex;
+	align-items: flex-start;
+	gap: 12px;
+	margin-top: 9px;
+}
+
+#sitcom-pin-wrap {
+	display: flex;
+	flex: 1 1 auto;
+	align-items: center;
+	gap: 9px;
+	min-width: 0;
+	color: #d9c79f;
+	font-size: 12px;
+}
+
+#sitcom-pin-wrap label {
+	display: flex;
+	align-items: center;
+	gap: 7px;
+	flex: 0 0 auto;
+	font-weight: 700;
+	white-space: nowrap;
+}
+
+#sitcom-pin {
+	width: 17px;
+	height: 17px;
+	margin: 0;
+	accent-color: #d7c18e;
+}
+
+#sitcom-pin-help {
+	margin: 0;
+	min-width: 0;
+	color: #8290a7;
+	font-size: 11px;
+	line-height: 1.3;
+}
+
+.sitcom-feedback {
+	display: flex;
+	align-items: baseline;
+	gap: 12px;
+}
+
+#sitcom-status,
+#sitcom-eta {
+	margin: 7px 0 0;
+	min-height: 0;
+	color: #92a0b6;
+	font-size: 12px;
 	pointer-events: none;
 }
-#sitcom-status.ok { color: #7dffb3; }
-#sitcom-status.bad { color: #ff8d8d; }
-#sitcom-name {
-	box-sizing: border-box;
-	flex: 0 1 160px; min-width: 120px; font-size: 16px !important;
-	background: #151b2ecc; color: #e8f0ff; border: 1px solid #2a3a60;
-	border-radius: 12px; padding: 10px 12px;
-}
-#sitcom-buy {
-	display: none;
-	gap: 6px;
-	flex-wrap: wrap;
-	margin-top: 8px;
+
+#sitcom-status:empty,
+#sitcom-eta:empty { display: none; }
+#sitcom-status.ok { color: #7fcca1; }
+#sitcom-status.bad { color: #ef8c82; }
+
+.sitcom-account-row {
+	display: flex;
 	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	margin-top: 10px;
 }
-#sitcom-buy.show { display: flex; }
-.sitcom-buy-btn {
-	font-size: 13px; background: #1e2a4a; color: #d6e4ff;
-	border: 1px solid #3d7dff; border-radius: 10px;
-	padding: 8px 10px; cursor: pointer;
+
+#sitcom-credits {
+	margin: 0;
+	color: #aab6c8;
+	font-size: 12px;
 }
-#sitcom-credits, #sitcom-eta {
-	margin: 6px 0 0;
-	color: #8aa0c8;
-	font: 14px/1.3 ui-sans-serif, system-ui, sans-serif;
+
+#sitcom-credits:empty { display: none; }
+
+.sitcom-tools {
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	gap: 4px;
+	margin-left: auto;
 }
-#sitcom-queue-toggle, #sitcom-storage-toggle {
-	margin-top: 8px;
-	font-size: 13px; background: #1e2a4a; color: #d6e4ff;
-	border: 1px solid #3d7dff; border-radius: 10px;
-	padding: 8px 10px; cursor: pointer;
+
+.sitcom-tool-button {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	padding: 7px 9px;
+	border-radius: 7px;
+	background: transparent;
+	color: #b7c2d2;
+	font-size: 12px;
+	font-weight: 700;
 }
-#sitcom-queue, #sitcom-storage {
+
+.sitcom-tool-button:hover,
+.sitcom-tool-button[aria-expanded="true"] {
+	background: rgba(255, 255, 255, .07);
+	color: #f4f0e8;
+}
+
+.sitcom-tool-button::after {
+	content: "";
+	width: 6px;
+	height: 6px;
+	border-right: 1.5px solid currentColor;
+	border-bottom: 1.5px solid currentColor;
+	transform: rotate(45deg) translateY(-2px);
+	transition: transform .16s ease;
+}
+
+.sitcom-tool-button[aria-expanded="true"]::after {
+	transform: rotate(225deg) translate(-1px, -1px);
+}
+
+.sitcom-panel {
 	display: none;
 	margin-top: 8px;
-	color: #d6e4ff;
-	font: 14px/1.35 ui-sans-serif, system-ui, sans-serif;
-	max-width: 720px;
+	padding: 12px;
+	background: #101722;
+	border: 1px solid #283347;
+	border-radius: 10px;
+	color: #c8d0dd;
+	font-size: 13px;
 }
-#sitcom-queue.open, #sitcom-storage.open { display: block; }
+
+.sitcom-panel.open { display: block; }
+.sitcom-panel-heading {
+	margin: 0 0 4px;
+	color: #f3eee4;
+	font-family: Georgia, "Times New Roman", serif;
+	font-size: 17px;
+	font-weight: 500;
+}
+.sitcom-panel-copy { margin: 0 0 10px; color: #8997aa; }
+
+#sitcom-buy.show.open {
+	display: grid;
+	grid-template-columns: repeat(4, minmax(0, 1fr));
+	gap: 7px;
+}
+
+.sitcom-buy-btn {
+	min-height: 42px;
+	padding: 8px 9px;
+	border: 1px solid #3c485d;
+	border-radius: 7px;
+	background: #171f2d;
+	color: #eef1f5;
+	font-size: 12px;
+	font-weight: 650;
+	text-align: left;
+}
+.sitcom-buy-btn:hover { border-color: #d0bb8c; background: #1d2736; }
+
+#sitcom-queue h2 {
+	margin: 9px 0 4px;
+	color: #d3be91;
+	font-size: 10px;
+	font-weight: 800;
+	letter-spacing: .12em;
+	text-transform: uppercase;
+}
+#sitcom-now { margin: 0; color: #89cca4; }
+#sitcom-queue-list { margin: 0; padding-left: 1.4em; }
+#sitcom-queue-list li { margin: 3px 0; }
+#sitcom-writing { margin: 8px 0 0; color: #8997aa; }
+
 #sitcom-storage p { margin: 0 0 8px; }
 #sitcom-storage p:last-child { margin-bottom: 0; }
+.sitcom-recovery-layout {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) minmax(260px, .75fr);
+	gap: 14px;
+	align-items: start;
+}
+.sitcom-recovery-key-wrap {
+	padding: 10px;
+	background: #0b111b;
+	border: 1px solid #293449;
+	border-radius: 8px;
+}
+.sitcom-field-label {
+	display: block;
+	margin: 0 0 6px;
+	color: #d3be91;
+	font-size: 10px;
+	font-weight: 800;
+	letter-spacing: .1em;
+	text-transform: uppercase;
+}
 #sitcom-recovery-key {
 	display: block;
 	margin: 0 0 8px;
-	padding: 8px 10px;
-	background: #151b2ecc;
-	border: 1px solid #2a3a60;
-	border-radius: 10px;
-	color: #7dffb3;
-	font: 13px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+	color: #86d5a8;
+	font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 	word-break: break-all;
 }
-#sitcom-recovery-row {
-	display: flex;
-	gap: 6px;
-	flex-wrap: wrap;
-	align-items: center;
-	margin: 0 0 8px;
-}
-#sitcom-recovery-input {
-	box-sizing: border-box;
-	flex: 1 1 180px;
-	min-width: 160px;
-	font-size: 16px !important;
-	background: #151b2ecc; color: #e8f0ff; border: 1px solid #2a3a60;
-	border-radius: 12px; padding: 10px 12px;
-}
-#sitcom-recovery-restore {
-	font-size: 13px; background: #1e2a4a; color: #d6e4ff;
-	border: 1px solid #3d7dff; border-radius: 10px;
-	padding: 8px 10px; cursor: pointer;
-}
-#sitcom-queue h2 {
-	margin: 0 0 4px;
+.sitcom-recovery-actions { display: flex; gap: 7px; }
+#sitcom-recovery-row { display: flex; gap: 7px; align-items: stretch; }
+#sitcom-recovery-input { flex: 1 1 auto; width: 100%; padding: 9px 10px; }
+#sitcom-recovery-restore,
+#sitcom-recovery-copy {
+	padding: 8px 11px;
+	border-radius: 7px;
+	background: #29364a;
+	color: #f0f3f7;
 	font-size: 12px;
-	letter-spacing: 0.08em;
-	text-transform: uppercase;
-	color: #c9b48a;
-	font-weight: 600;
+	font-weight: 750;
 }
-#sitcom-now { margin: 0 0 6px; color: #7dffb3; }
-#sitcom-queue-list { margin: 0; padding-left: 1.4em; }
-#sitcom-queue-list li { margin: 2px 0; }
-#sitcom-writing { margin: 6px 0 0; color: #8aa0c8; }
-#sitcom-pin-wrap {
-	display: flex;
-	flex-direction: column;
-	align-items: flex-start;
-	gap: 4px;
-	color: #c9b48a;
-	font: 13px/1.35 ui-sans-serif, system-ui, sans-serif;
-	margin-top: 8px;
-	max-width: 720px;
+#sitcom-recovery-restore:hover,
+#sitcom-recovery-copy:hover { background: #364760; }
+
+@media (max-width: 700px) {
+	#sitcom-chrome { max-height: 54dvh; }
+	#sitcom-chrome-inner { padding-bottom: 14px; }
+	.sitcom-topline { margin-bottom: 8px; }
+	.sitcom-identity { font-size: 10px; gap: 7px; }
+	.sitcom-kicker, .sitcom-divider { display: none; }
+	#sitcom-compose { padding: 10px; }
+	.sitcom-compose-heading p { display: none; }
+	#sitcom-bar { grid-template-columns: minmax(0, 1fr); }
+	#sitcom-gen { width: 100%; min-height: 40px; }
+	.sitcom-meta-row { flex-wrap: wrap; gap: 8px; }
+	#sitcom-name { width: 100%; }
+	#sitcom-pin-wrap { align-items: flex-start; }
+	#sitcom-pin-wrap label { margin-top: 1px; }
+	#sitcom-pin-help { display: none; }
+	.sitcom-account-row { align-items: flex-start; }
+	.sitcom-tools { flex-wrap: wrap; }
+	.sitcom-tool-button { padding: 6px 7px; }
+	#sitcom-buy.show.open { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+	.sitcom-recovery-layout { grid-template-columns: 1fr; }
+	#sitcom-recovery-row { flex-direction: column; }
+	#sitcom-recovery-restore { min-height: 40px; }
 }
-#sitcom-pin-wrap label { display: flex; align-items: center; gap: 6px; font-weight: 600; }
-#sitcom-pin-help { margin: 0; color: #8aa0c8; font-weight: 400; }
-@media (max-width: 640px) {
-	#sitcom-bar { flex-wrap: wrap; }
-	#sitcom-prompt { flex: 1 0 100%; }
-	#sitcom-name { flex: 1 0 48%; }
-	.sitcom-buy-btn { flex: 1 1 42%; }
+
+@media (max-height: 620px) {
+	#sitcom-chrome { max-height: 58dvh; }
+	.sitcom-compose-heading { display: none; }
 }
 		</style>
 		<link id="-gd-engine-icon" rel="icon" type="image/png" href="index.icon.png" />
@@ -375,38 +644,77 @@ body.player-expanded #player-shell {
 	</head>
 	<body>
 		<header id="sitcom-chrome">
-			<div id="sitcom-bar">
-				<button id="sitcom-gen" type="button">Ask the Selector</button>
-				<p id="sitcom-set"></p>
-				<input id="sitcom-prompt" type="text" placeholder="Your episode topic" autocomplete="off" autocorrect="off" />
-				<input id="sitcom-name" type="text" placeholder="Your name" autocomplete="nickname" maxlength="24" />
-			</div>
-			<div id="sitcom-buy"></div>
-			<div id="sitcom-pin-wrap"><label><input id="sitcom-pin" type="checkbox" /> Pin this episode in long memory</label><p id="sitcom-pin-help">A pin makes this episode a high-priority memory. Maris keeps it and can bring it up later. Check the box, then Ask the Selector. $5+ packs include pins.</p></div>
-			<p id="sitcom-credits"></p>
-			<button type="button" id="sitcom-queue-toggle" aria-expanded="false" aria-controls="sitcom-queue">View queue</button>
-			<div id="sitcom-queue">
-				<p id="sitcom-now"></p>
-				<h2>Queue</h2>
-				<ol id="sitcom-queue-list"></ol>
-				<p id="sitcom-writing"></p>
-			</div>
-			<button type="button" id="sitcom-storage-toggle" aria-expanded="false" aria-controls="sitcom-storage">How prompts are stored</button>
-			<div id="sitcom-storage">
-				<p>Prompts and memory pins live on this browser (a cookie) and in the archive.</p>
-				<p>Remaining budget is tied to a recovery key, not just this device.</p>
-				<p>Save the key. If you switch browsers, use incognito, or clear this site's data, paste it here. This browser gets the same remaining prompts and pins, and further spends come off that key.</p>
-				<p>There is no login. The key is how you come back.</p>
-				<p>Clearing cookies does not erase public episodes.</p>
-				<code id="sitcom-recovery-key"></code>
-				<p>Save this. It restores your remaining prompts and pins.</p>
-				<div id="sitcom-recovery-row">
-					<input id="sitcom-recovery-input" type="text" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="Paste a recovery key" />
-					<button type="button" id="sitcom-recovery-restore">Restore</button>
+			<div id="sitcom-chrome-inner">
+				<div class="sitcom-topline">
+					<div class="sitcom-identity">
+						<span class="sitcom-live-dot" aria-hidden="true"></span>
+						<span class="sitcom-kicker">Live interactive sitcom</span>
+						<span class="sitcom-divider" aria-hidden="true">/</span>
+						<span class="sitcom-title">The Singularity Blues</span>
+					</div>
+					<p id="sitcom-set"></p>
+				</div>
+
+				<section id="sitcom-compose" aria-labelledby="sitcom-compose-title">
+					<div class="sitcom-compose-heading">
+						<h1 id="sitcom-compose-title">Prompt the next episode</h1>
+						<p>$1 starts a new story</p>
+					</div>
+					<div id="sitcom-bar">
+						<input id="sitcom-prompt" type="text" aria-label="Episode prompt" placeholder="What should happen next?" autocomplete="off" autocorrect="off" />
+						<button id="sitcom-gen" type="button">Ask the Selector <span aria-hidden="true">→</span></button>
+					</div>
+					<div class="sitcom-meta-row">
+						<input id="sitcom-name" type="text" aria-label="Your name" placeholder="Your name (optional)" autocomplete="nickname" maxlength="24" />
+						<div id="sitcom-pin-wrap">
+							<label><input id="sitcom-pin" type="checkbox" /> Save to long memory</label>
+							<p id="sitcom-pin-help">A memory pin lets Maris bring this episode up later. $5+ packs include pins.</p>
+						</div>
+					</div>
+					<div class="sitcom-feedback" aria-live="polite">
+						<p id="sitcom-status"></p>
+						<p id="sitcom-eta"></p>
+					</div>
+				</section>
+
+				<div class="sitcom-account-row">
+					<p id="sitcom-credits"></p>
+					<nav class="sitcom-tools" aria-label="Show tools">
+						<button type="button" id="sitcom-buy-toggle" class="sitcom-tool-button" aria-expanded="false" aria-controls="sitcom-buy" hidden>Add prompts</button>
+						<button type="button" id="sitcom-queue-toggle" class="sitcom-tool-button" aria-expanded="false" aria-controls="sitcom-queue">Queue</button>
+						<button type="button" id="sitcom-storage-toggle" class="sitcom-tool-button" aria-expanded="false" aria-controls="sitcom-storage" title="How prompts are stored">Recovery</button>
+					</nav>
+				</div>
+
+				<div id="sitcom-buy" class="sitcom-panel" aria-label="Prompt packs"></div>
+				<div id="sitcom-queue" class="sitcom-panel" aria-label="Episode queue">
+					<h3 class="sitcom-panel-heading">On air &amp; coming up</h3>
+					<p id="sitcom-now"></p>
+					<h2>Queue</h2>
+					<ol id="sitcom-queue-list"></ol>
+					<p id="sitcom-writing"></p>
+				</div>
+				<div id="sitcom-storage" class="sitcom-panel" aria-label="Recovery key">
+					<h3 class="sitcom-panel-heading">Keep your prompts when you switch devices</h3>
+					<p class="sitcom-panel-copy">There is no login. Your private recovery key carries your remaining prompts and memory pins to another browser. Public episodes stay in the archive even if you clear this site's data.</p>
+					<div class="sitcom-recovery-layout">
+						<div class="sitcom-recovery-key-wrap">
+							<span class="sitcom-field-label">Your private recovery key</span>
+							<code id="sitcom-recovery-key"></code>
+							<div class="sitcom-recovery-actions">
+								<button type="button" id="sitcom-recovery-copy">Copy key</button>
+							</div>
+						</div>
+						<div>
+							<label class="sitcom-field-label" for="sitcom-recovery-input">Restore an existing key</label>
+							<div id="sitcom-recovery-row">
+								<input id="sitcom-recovery-input" type="text" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="Paste a recovery key" />
+								<button type="button" id="sitcom-recovery-restore">Restore</button>
+							</div>
+						</div>
+					</div>
 				</div>
 			</div>
-			<p id="sitcom-eta"></p>
-			<p id="sitcom-status"></p>
 		</header>
 		<main id="player-shell">
 			<canvas id="canvas">
@@ -688,6 +996,7 @@ const engine = new Engine(GODOT_CONFIG);
 	const nameEl = document.getElementById('sitcom-name');
 	const status = document.getElementById('sitcom-status');
 	const buyEl = document.getElementById('sitcom-buy');
+	const buyToggle = document.getElementById('sitcom-buy-toggle');
 	const creditsEl = document.getElementById('sitcom-credits');
 	const etaEl = document.getElementById('sitcom-eta');
 	const pinWrap = document.getElementById('sitcom-pin-wrap');
@@ -705,20 +1014,45 @@ const engine = new Engine(GODOT_CONFIG);
 	const writingEl = document.getElementById('sitcom-writing');
 	const queueEl = document.getElementById('sitcom-queue');
 	const queueToggle = document.getElementById('sitcom-queue-toggle');
-	if (queueToggle && queueEl) {
-		queueToggle.addEventListener('click', () => {
-			const open = queueEl.classList.toggle('open');
-			queueToggle.textContent = open ? 'Hide queue' : 'View queue';
-			queueToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
-		});
-	}
 	const storageEl = document.getElementById('sitcom-storage');
 	const storageToggle = document.getElementById('sitcom-storage-toggle');
-	if (storageToggle && storageEl) {
-		storageToggle.addEventListener('click', () => {
-			const open = storageEl.classList.toggle('open');
-			storageToggle.textContent = open ? 'Hide' : 'How prompts are stored';
-			storageToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+	const panelPairs = [
+		[buyToggle, buyEl],
+		[queueToggle, queueEl],
+		[storageToggle, storageEl],
+	];
+	function setPanelOpen(activeToggle, activePanel, open) {
+		panelPairs.forEach(([toggle, panel]) => {
+			if (!toggle || !panel) return;
+			const isOpen = open && toggle === activeToggle;
+			panel.classList.toggle('open', isOpen);
+			toggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+		});
+		if (open) {
+			setTimeout(() => activePanel.scrollIntoView({behavior: 'smooth', block: 'nearest'}), 0);
+		}
+	}
+	panelPairs.forEach(([toggle, panel]) => {
+		if (!toggle || !panel) return;
+		toggle.addEventListener('click', () => {
+			const open = !panel.classList.contains('open');
+			setPanelOpen(toggle, panel, open);
+		});
+	});
+	const copyBtn = document.getElementById('sitcom-recovery-copy');
+	const recoveryKeyEl = document.getElementById('sitcom-recovery-key');
+	if (copyBtn && recoveryKeyEl) {
+		copyBtn.addEventListener('click', async () => {
+			const key = recoveryKeyEl.textContent.trim();
+			if (!key || !key.startsWith('sbk_')) return;
+			try {
+				await navigator.clipboard.writeText(key);
+				status.className = 'ok';
+				status.textContent = 'Recovery key copied.';
+			} catch (err) {
+				status.className = 'bad';
+				status.textContent = 'Copy failed. Press and hold the key to copy it.';
+			}
 		});
 	}
 	const restoreBtn = document.getElementById('sitcom-recovery-restore');
@@ -810,6 +1144,7 @@ const engine = new Engine(GODOT_CONFIG);
 			if (buyEl) {
 				if (d.stripe && d.bundles && d.bundles.length) {
 					buyEl.classList.add('show');
+					if (buyToggle) buyToggle.hidden = false;
 					buyEl.innerHTML = '';
 					d.bundles.forEach((b) => {
 						const btn = document.createElement('button');
@@ -820,7 +1155,11 @@ const engine = new Engine(GODOT_CONFIG);
 						buyEl.appendChild(btn);
 					});
 				} else {
-					buyEl.classList.remove('show');
+					buyEl.classList.remove('show', 'open');
+					if (buyToggle) {
+						buyToggle.hidden = true;
+						buyToggle.setAttribute('aria-expanded', 'false');
+					}
 					buyEl.innerHTML = '';
 				}
 			}
@@ -828,6 +1167,7 @@ const engine = new Engine(GODOT_CONFIG);
 			if (rkEl) {
 				const rk = (d.recovery_key || '').trim();
 				rkEl.textContent = rk || 'Buy a pack or restore a key.';
+				if (copyBtn) copyBtn.disabled = !rk;
 			}
 			return d;
 		} catch (e) { return null; }
