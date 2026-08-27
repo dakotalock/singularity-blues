@@ -78,9 +78,12 @@ def test_duration_uses_wav_length(tmp_path, monkeypatch):
         "beats": beats,
     }
     dur = pl._duration(packet)
+    speech = 4.0 + 4 * pl.HOLD_SEC
+    expected = speech * pl.DURATION_MULT + pl.LAST_BEAT_PAD
     assert dur > 4.0
     assert dur != 0.2
-    assert dur >= 4.0 + 4 * 0.35
+    assert dur >= expected - 1e-6
+    assert pl.GRACE_SEC >= 12.0
 
 
 def test_empty_current_has_no_beats(tmp_path, monkeypatch):

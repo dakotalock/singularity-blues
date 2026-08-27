@@ -15,10 +15,12 @@ from orchestrator import DATA_DIR, NOW_PLAYING_PATH, ROOT, TTS_DIR
 from orchestrator.tts import render, write_now_playing
 
 PLAYLIST_PATH = DATA_DIR / "playlist.json"
-GRACE_SEC = 3.0
-HOLD_SEC = 0.35
-ENTER_WALK_SEC = 2.0
-LEAVE_SEC = 1.5
+GRACE_SEC = 12.0
+HOLD_SEC = 0.65
+ENTER_WALK_SEC = 2.8
+LEAVE_SEC = 1.65
+LAST_BEAT_PAD = 1.0
+DURATION_MULT = 1.08
 
 _lock = threading.RLock()
 _state: dict[str, Any] | None = None
@@ -66,23 +68,30 @@ def _beat_audio_path(audio: str) -> Path | None:
 
 
 def _duration(packet: dict[str, Any]) -> float:
-    total = 0.0
-    for beat in packet.get("beats") or []:
+    # Over-estimate vs Godot: holds, reaction shots, last-beat camera, walking.
+    # A few seconds of idle is better than cutting the episode short.
+    speech = 0.0
+    motion = 0.0
+    beats = packet.get("beats") or []
+    for beat in beats:
         audio = str(beat.get("audio") or "")
         wav_len = None
         path = _beat_audio_path(audio)
         if path is not None:
             wav_len = _wav_seconds(path)
         if wav_len is not None:
-            total += wav_len
+            speech += wav_len
         else:
-            total += float(beat.get("duration_sec") or 1.5)
-        total += HOLD_SEC
+            speech += float(beat.get("duration_sec") or 1.5)
+        speech += HOLD_SEC
         anim = str(beat.get("animation") or "").lower()
         if anim in ("enter", "walking"):
-            total += ENTER_WALK_SEC
+            motion += ENTER_WALK_SEC
         elif anim == "leave":
-            total += LEAVE_SEC
+            motion += LEAVE_SEC
+    total = speech * DURATION_MULT + motion
+    if beats:
+        total += LAST_BEAT_PAD
     return max(8.0, total)
 
 
