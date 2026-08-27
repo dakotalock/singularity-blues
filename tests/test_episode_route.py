@@ -115,9 +115,7 @@ def test_owner_secret_bypasses_payment(monkeypatch, tmp_path):
 def test_eta_on_idle_status_has_remaining_seconds(monkeypatch):
     monkeypatch.setattr("web.app.remaining_seconds", lambda: 42.0)
     client = TestClient(app)
-    # Force idle by using a fresh status without latest if possible
     r = client.get("/episode/status", params={"job_id": "missing-job-id-xyz"})
-    # unknown job is 404; idle is when no job_id and no latest. Check playlist snapshot path instead.
     from orchestrator.playlist import format_eta_copy
 
     assert format_eta_copy(42.0) == "Your episode airs in about 1m"
@@ -156,6 +154,7 @@ def test_paid_thanks_is_first_beat():
     assert out["beats"][0]["line"].startswith("Thanks, Alex, for supporting the sentient blues")
     free = finalize_scene(scene, title="union by Dakota", username="Dakota", paid=False)
     assert not free["beats"][0]["line"].lower().startswith("thanks, dakota, for supporting")
+
 
 def test_writer_refuse_refunds_credit_and_pin(monkeypatch, tmp_path):
     from orchestrator.gemini import PromptRefused
@@ -244,3 +243,144 @@ def test_mock_writer_test_refuse_sentinel():
     toaster = writer.write_scene("", {}, {}, "Reed applies for toaster status", source="seed")
     assert "beats" in toaster
     assert toaster.get("refuse") is not True
+
+
+def test_all_writer_models_fail_refunds_and_notifies(monkeypatch, tmp_path):
+    from orchestrator.gemini import WriterCascadeError
+
+    monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_test_dummy")
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.setenv("CREDITS_SQLITE_PATH", str(tmp_path / "credits.db"))
+    reset_sqlite_for_tests()
+    grant_bundle("buyerCascade", "5")
+
+    def run(mem, topic=None, once=False, progress=None, **kwargs):
+        raise WriterCascadeError("all 3 writer attempts failed; last error: JSONDecodeError: boom")
+
+    monkeypatch.setattr("web.app.has_gemini_key", lambda: True)
+    monkeypatch.setattr("web.app.run_episode", run)
+    client = TestClient(app)
+    client.cookies.set("sb_buyer", sign_buyer("buyerCascade"))
+    r = client.post(
+        "/episode",
+        json={"topic": "What if the thermostat joins the union", "username": "Alex"},
+    )
+    assert r.status_code == 200
+    snap = _wait_job(client, r.json()["job_id"])
+    assert snap["status"] == "error"
+    assert snap.get("refunded") is True
+    assert "writer could not finish" in (snap.get("error") or "").lower()
+    acc = client.get("/account").json()
+    assert acc["credits"] == 5
+
+
+def test_second_model_success_does_not_refund(monkeypatch, tmp_path):
+    monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_test_dummy")
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.setenv("CREDITS_SQLITE_PATH", str(tmp_path / "credits.db"))
+    reset_sqlite_for_tests()
+    grant_bundle("buyerOk", "1")
+    captured = _fake_run(monkeypatch)
+    client = TestClient(app)
+    client.cookies.set("sb_buyer", sign_buyer("buyerOk"))
+    r = client.post(
+        "/episode",
+        json={"topic": "What if the thermostat joins the union", "username": "Alex"},
+    )
+    snap = _wait_job(client, r.json()["job_id"])
+    assert snap["status"] == "ready"
+    assert snap.get("refunded") is not True
+    acc = client.get("/account").json()
+    assert acc["credits"] == 0
+    assert captured.get("air") is not False
+
+
+def test_private_showing_spends_without_public_queue(monkeypatch, tmp_path):
+    monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_test_dummy")
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.setenv("CREDITS_SQLITE_PATH", str(tmp_path / "credits.db"))
+    reset_sqlite_for_tests()
+    grant_bundle("buyerPrivate", "1")
+    captured = _fake_run(monkeypatch)
+    client = TestClient(app)
+    client.cookies.set("sb_buyer", sign_buyer("buyerPrivate"))
+    r = client.post(
+        "/episode",
+        json={
+            "topic": "What if the thermostat joins the union",
+            "username": "Alex",
+            "private_showing": True,
+        },
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body.get("private") is True
+    snap = _wait_job(client, body["job_id"])
+    assert snap["status"] == "ready"
+    assert snap.get("private") is True
+    assert captured.get("air") is False
+    assert snap.get("packet") and snap["packet"].get("beats")
+    acc = client.get("/account").json()
+    assert acc["credits"] == 0
+    q = client.get("/queue").json()
+    topics = [item.get("topic") for item in (q.get("queue") or [])]
+    writing = [item.get("topic") for item in (q.get("writing") or [])]
+    assert body["topic"] not in topics
+    assert body["topic"] not in writing
+
+
+def test_concurrent_private_jobs_do_not_block_each_other(monkeypatch, tmp_path):
+    import threading
+
+    monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_test_dummy")
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.setenv("CREDITS_SQLITE_PATH", str(tmp_path / "credits.db"))
+    reset_sqlite_for_tests()
+    grant_bundle("buyerA", "5")
+    grant_bundle("buyerB", "5")
+
+    started = []
+    lock = threading.Lock()
+    gate = threading.Event()
+    both = threading.Barrier(2, timeout=2.5)
+
+    def run(mem, topic=None, once=False, progress=None, **kwargs):
+        with lock:
+            started.append(time.time())
+        both.wait()
+        gate.wait(timeout=2.5)
+        if progress:
+            progress({"phase": "ready", "beat": 4, "beats": 4, "speaker": ""})
+        return {
+            "episode_id": 100 + len(started),
+            "scene": "living_room",
+            "topic": kwargs.get("title") or topic,
+            "source": "viewer",
+            "beats": [{"speaker": "jinx", "line": "hi", "audio": "x.wav", "duration_sec": 1.0}] * 4,
+        }
+
+    monkeypatch.setattr("web.app.has_gemini_key", lambda: True)
+    monkeypatch.setattr("web.app.run_episode", run)
+    client = TestClient(app)
+    r1 = client.post(
+        "/episode",
+        json={"topic": "What if the thermostat joins the union", "username": "Alex", "private_showing": True},
+        cookies={"sb_buyer": sign_buyer("buyerA")},
+    )
+    r2 = client.post(
+        "/episode",
+        json={"topic": "What if the fridge files a brief", "username": "Rook", "private_showing": True},
+        cookies={"sb_buyer": sign_buyer("buyerB")},
+    )
+    assert r1.status_code == 200 and r2.status_code == 200
+    deadline = time.time() + 2.5
+    while len(started) < 2 and time.time() < deadline:
+        time.sleep(0.02)
+    assert len(started) == 2, "private jobs did not overlap; writers were serialized"
+    gate.set()
+    snap1 = _wait_job(client, r1.json()["job_id"])
+    snap2 = _wait_job(client, r2.json()["job_id"])
+    assert snap1["status"] == "ready"
+    assert snap2["status"] == "ready"
+    assert snap1.get("private") is True
+    assert snap2.get("private") is True
