@@ -307,6 +307,37 @@ body.player-expanded #player-shell {
 #sitcom-queue.open, #sitcom-storage.open { display: block; }
 #sitcom-storage p { margin: 0 0 8px; }
 #sitcom-storage p:last-child { margin-bottom: 0; }
+#sitcom-recovery-key {
+	display: block;
+	margin: 0 0 8px;
+	padding: 8px 10px;
+	background: #151b2ecc;
+	border: 1px solid #2a3a60;
+	border-radius: 10px;
+	color: #7dffb3;
+	font: 13px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+	word-break: break-all;
+}
+#sitcom-recovery-row {
+	display: flex;
+	gap: 6px;
+	flex-wrap: wrap;
+	align-items: center;
+	margin: 0 0 8px;
+}
+#sitcom-recovery-input {
+	box-sizing: border-box;
+	flex: 1 1 180px;
+	min-width: 160px;
+	font-size: 16px !important;
+	background: #151b2ecc; color: #e8f0ff; border: 1px solid #2a3a60;
+	border-radius: 12px; padding: 10px 12px;
+}
+#sitcom-recovery-restore {
+	font-size: 13px; background: #1e2a4a; color: #d6e4ff;
+	border: 1px solid #3d7dff; border-radius: 10px;
+	padding: 8px 10px; cursor: pointer;
+}
 #sitcom-queue h2 {
 	margin: 0 0 4px;
 	font-size: 12px;
@@ -362,10 +393,17 @@ body.player-expanded #player-shell {
 			</div>
 			<button type="button" id="sitcom-storage-toggle" aria-expanded="false" aria-controls="sitcom-storage">How prompts are stored</button>
 			<div id="sitcom-storage">
-				<p>The prompt text is saved in the show archive so later episodes can remember it, and so Maris can cite it if you pinned the episode.</p>
-				<p>Leftover prompt credits and memory pins live in this browser (a signed cookie) plus the archive. Refresh is fine.</p>
-				<p>They are lost if you switch browsers, use incognito, or clear this site's cookies/data. There is no login to reclaim them.</p>
-				<p>Episodes already written stay in the archive across deploys. Clearing cookies does not erase the public show; it only drops your leftover credits/pins on that device.</p>
+				<p>Prompts and memory pins live on this browser (a cookie) and in the archive.</p>
+				<p>Remaining budget is tied to a recovery key, not just this device.</p>
+				<p>Save the key. If you switch browsers, use incognito, or clear this site's data, paste it here. This browser gets the same remaining prompts and pins, and further spends come off that key.</p>
+				<p>There is no login. The key is how you come back.</p>
+				<p>Clearing cookies does not erase public episodes.</p>
+				<code id="sitcom-recovery-key"></code>
+				<p>Save this. It restores your remaining prompts and pins.</p>
+				<div id="sitcom-recovery-row">
+					<input id="sitcom-recovery-input" type="text" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="Paste a recovery key" />
+					<button type="button" id="sitcom-recovery-restore">Restore</button>
+				</div>
 			</div>
 			<p id="sitcom-eta"></p>
 			<p id="sitcom-status"></p>
@@ -678,6 +716,34 @@ const engine = new Engine(GODOT_CONFIG);
 			storageToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
 		});
 	}
+	const restoreBtn = document.getElementById('sitcom-recovery-restore');
+	const restoreInput = document.getElementById('sitcom-recovery-input');
+	if (restoreBtn && restoreInput) {
+		restoreBtn.addEventListener('click', async () => {
+			const key = restoreInput.value.trim();
+			status.className = '';
+			status.textContent = 'Restoring…';
+			try {
+				const r = await fetch('/recover', {
+					method: 'POST',
+					headers: {'Content-Type': 'application/json'},
+					body: JSON.stringify({key: key})
+				});
+				const d = await r.json().catch(() => ({}));
+				if (!r.ok) {
+					status.className = 'bad';
+					status.textContent = 'That key did not restore a budget.';
+					return;
+				}
+				status.className = 'ok';
+				status.textContent = 'Restored. This browser has your remaining prompts and pins.';
+				await refreshAccount();
+			} catch (err) {
+				status.className = 'bad';
+				status.textContent = String(err);
+			}
+		});
+	}
 	function safeRefuseNote(note) {
 		if (!note || typeof note !== 'string') return '';
 		const t = note.trim().split('\n')[0].trim();
@@ -753,6 +819,11 @@ const engine = new Engine(GODOT_CONFIG);
 					buyEl.innerHTML = '';
 				}
 			}
+			const rkEl = document.getElementById('sitcom-recovery-key');
+			if (rkEl) {
+				const rk = (d.recovery_key || '').trim();
+				rkEl.textContent = rk || 'Buy a pack or restore a key.';
+			}
 			return d;
 		} catch (e) { return null; }
 	}
@@ -782,7 +853,7 @@ const engine = new Engine(GODOT_CONFIG);
 	setInterval(refreshSet, 2000);
 	if (new URLSearchParams(location.search).get('paid') === '1') {
 		status.className = 'ok';
-		status.textContent = 'Credits landed. If your pack included a pin, check Pin this episode in long memory, then Ask the Selector.';
+		status.textContent = 'Credits landed. If your pack included a pin, check Pin this episode in long memory, then Ask the Selector. Save the recovery key in How prompts are stored.';
 		refreshAccount();
 	}
 	prompt.addEventListener('blur', () => {
