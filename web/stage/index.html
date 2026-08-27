@@ -21,6 +21,16 @@ body {
 	touch-action: none;
 }
 
+#player-shell {
+	position: relative;
+	display: flex;
+	flex: 1 1 auto;
+	min-height: 0;
+	width: 100%;
+	background: #000;
+	overflow: hidden;
+}
+
 #canvas {
 	margin: 0;
 	padding: 0;
@@ -113,6 +123,70 @@ body {
 
 body.broadcast #sitcom-chrome {
 	display: none;
+}
+
+body.broadcast #player-controls {
+	display: none;
+}
+
+#player-controls {
+	position: absolute;
+	z-index: 35;
+	top: max(78px, env(safe-area-inset-top, 0px));
+	right: max(14px, env(safe-area-inset-right, 0px));
+	display: flex;
+	gap: 8px;
+	align-items: center;
+	font: 600 14px/1.2 ui-sans-serif, system-ui, sans-serif;
+	pointer-events: auto;
+}
+
+.player-control {
+	appearance: none;
+	border: 1px solid rgba(255,255,255,.28);
+	border-radius: 999px;
+	background: rgba(10,15,28,.88);
+	color: #eef5ff;
+	padding: 10px 13px;
+	box-shadow: 0 5px 18px rgba(0,0,0,.35);
+	cursor: pointer;
+	backdrop-filter: blur(8px);
+}
+
+#sitcom-volume[data-state="muted"] {
+	background: rgba(112,35,38,.94);
+	border-color: rgba(255,137,137,.85);
+}
+
+#sitcom-volume[data-state="on"] {
+	background: rgba(24,88,61,.94);
+	border-color: rgba(125,255,179,.72);
+}
+
+#player-shell:fullscreen,
+#player-shell:-webkit-full-screen {
+	width: 100vw;
+	height: 100vh;
+	background: #000;
+}
+
+body.player-expanded #sitcom-chrome { display: none; }
+body.player-expanded #player-shell {
+	position: fixed;
+	inset: 0;
+	z-index: 1000;
+	width: 100vw;
+	height: 100dvh;
+}
+
+@media (max-width: 640px) {
+	#player-controls {
+		top: max(70px, env(safe-area-inset-top, 0px));
+		right: max(8px, env(safe-area-inset-right, 0px));
+		gap: 6px;
+	}
+	.player-control { padding: 9px 11px; font-size: 12px; }
+	#sitcom-volume { max-width: 190px; }
 }
 
 #sitcom-bar {
@@ -256,19 +330,24 @@ body.broadcast #sitcom-chrome {
 			<p id="sitcom-eta"></p>
 			<p id="sitcom-status"></p>
 		</header>
-		<canvas id="canvas">
-			Your browser does not support the canvas tag.
-		</canvas>
+		<main id="player-shell">
+			<canvas id="canvas">
+				Your browser does not support the canvas tag.
+			</canvas>
+			<div id="player-controls" aria-label="Player controls">
+				<button type="button" id="sitcom-volume" class="player-control" data-state="muted" aria-pressed="false">🔇 Muted — tap for sound</button>
+				<button type="button" id="sitcom-fullscreen" class="player-control" aria-pressed="false">⛶ Full screen</button>
+			</div>
+			<div id="status">
+				<img id="status-splash" class="show-image--true fullsize--true use-filter--true" src="index.png" alt="">
+				<progress id="status-progress"></progress>
+				<div id="status-notice"></div>
+			</div>
+		</main>
 
 		<noscript>
 			Your browser does not support JavaScript.
 		</noscript>
-
-		<div id="status">
-			<img id="status-splash" class="show-image--true fullsize--true use-filter--true" src="index.png" alt="">
-			<progress id="status-progress"></progress>
-			<div id="status-notice"></div>
-		</div>
 
 		<script src="index.js"></script>
 		<script>
@@ -287,9 +366,11 @@ function fitStage() {
 }
 window.addEventListener('load', fitStage);
 window.addEventListener('resize', fitStage);
+document.addEventListener('fullscreenchange', fitStage);
+document.addEventListener('webkitfullscreenchange', fitStage);
 fitStage();
 
-const GODOT_CONFIG = {"args":[],"canvasResizePolicy":0,"ensureCrossOriginIsolationHeaders":true,"executable":"index","experimentalVK":false,"fileSizes":{"index.pck":109680,"index.wasm":43699190},"focusCanvas":true,"gdextensionLibs":[]};
+const GODOT_CONFIG = {"args":[],"canvasResizePolicy":0,"ensureCrossOriginIsolationHeaders":true,"executable":"index","experimentalVK":false,"fileSizes":{"index.pck":119248,"index.wasm":43699190},"focusCanvas":true,"gdextensionLibs":[]};
 const GODOT_THREADS_ENABLED = false;
 const engine = new Engine(GODOT_CONFIG);
 
@@ -410,16 +491,107 @@ const engine = new Engine(GODOT_CONFIG);
 
 		<script>
 (function () {
-	function unlockAudio() {
+	const playerShell = document.getElementById('player-shell');
+	const volumeButton = document.getElementById('sitcom-volume');
+	const fullscreenButton = document.getElementById('sitcom-fullscreen');
+	let observedAudioContext = null;
+
+	function audioContext() {
+		try { return window.GodotAudio && GodotAudio.ctx ? GodotAudio.ctx : null; }
+		catch (e) { return null; }
+	}
+
+	function refreshVolumeButton() {
+		if (!volumeButton) return;
+		const ctx = audioContext();
+		if (ctx && ctx !== observedAudioContext) {
+			observedAudioContext = ctx;
+			try { ctx.addEventListener('statechange', refreshVolumeButton); } catch (e) {}
+		}
+		const isOn = !!ctx && ctx.state === 'running';
+		volumeButton.dataset.state = isOn ? 'on' : 'muted';
+		volumeButton.setAttribute('aria-pressed', isOn ? 'true' : 'false');
+		volumeButton.textContent = isOn ? '🔊 Sound on' : '🔇 Muted — tap for sound';
+		volumeButton.setAttribute('aria-label', isOn ? 'Mute the show' : 'Unmute the show');
+	}
+
+	async function setAudioEnabled(enabled) {
+		const ctx = audioContext();
+		if (!ctx) {
+			if (volumeButton) volumeButton.textContent = '🔇 Player loading — tap again';
+			return false;
+		}
 		try {
-			if (window.GodotAudio && GodotAudio.ctx && GodotAudio.ctx.state !== 'running') {
-				GodotAudio.ctx.resume();
-			}
+			if (enabled && ctx.state !== 'running') await ctx.resume();
+			if (!enabled && ctx.state === 'running') await ctx.suspend();
 		} catch (e) {}
+		refreshVolumeButton();
+		return ctx.state === 'running';
+	}
+
+	function unlockAudio() {
+		setAudioEnabled(true);
 		const canvas = document.getElementById('canvas');
 		if (canvas) canvas.focus();
 		window.scrollTo(0, 0);
 	}
+
+	if (volumeButton) {
+		volumeButton.addEventListener('click', async (event) => {
+			event.preventDefault();
+			event.stopPropagation();
+			const ctx = audioContext();
+			await setAudioEnabled(!ctx || ctx.state !== 'running');
+		});
+	}
+
+	function fullscreenElement() {
+		return document.fullscreenElement || document.webkitFullscreenElement || null;
+	}
+
+	function refreshFullscreenButton() {
+		if (!fullscreenButton) return;
+		const isFull = !!fullscreenElement() || document.body.classList.contains('player-expanded');
+		fullscreenButton.textContent = isFull ? '⤢ Exit full screen' : '⛶ Full screen';
+		fullscreenButton.setAttribute('aria-pressed', isFull ? 'true' : 'false');
+		setTimeout(fitStage, 30);
+	}
+
+	if (fullscreenButton && playerShell) {
+		fullscreenButton.addEventListener('click', async (event) => {
+			event.preventDefault();
+			event.stopPropagation();
+			try {
+				if (document.body.classList.contains('player-expanded')) {
+					document.body.classList.remove('player-expanded');
+				} else if (fullscreenElement()) {
+					if (document.exitFullscreen) await document.exitFullscreen();
+					else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+				} else if (playerShell.requestFullscreen) {
+					await playerShell.requestFullscreen();
+				} else if (playerShell.webkitRequestFullscreen) {
+					playerShell.webkitRequestFullscreen();
+				} else {
+					document.body.classList.add('player-expanded');
+				}
+			} catch (e) {
+				document.body.classList.toggle('player-expanded');
+			}
+			refreshFullscreenButton();
+		});
+	}
+	document.addEventListener('fullscreenchange', refreshFullscreenButton);
+	document.addEventListener('webkitfullscreenchange', refreshFullscreenButton);
+	document.addEventListener('keydown', (event) => {
+		if (event.key === 'Escape' && document.body.classList.contains('player-expanded')) {
+			document.body.classList.remove('player-expanded');
+			refreshFullscreenButton();
+		}
+	});
+	setInterval(refreshVolumeButton, 750);
+	refreshVolumeButton();
+	refreshFullscreenButton();
+
 	const gen = document.getElementById('sitcom-gen');
 	const prompt = document.getElementById('sitcom-prompt');
 	const nameEl = document.getElementById('sitcom-name');

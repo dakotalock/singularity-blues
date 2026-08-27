@@ -106,3 +106,17 @@ def test_mock_writer_viewer_topic_not_toaster():
     assert "thermostat" in validated.topic.lower()
     assert validated.topic.endswith("by Alex")
     assert "toaster" not in validated.topic.lower()
+
+
+def test_mock_writer_selects_a_fitting_set():
+    writer = MockWriter()
+    cases = {
+        "The refrigerator vetoes dinner in the kitchen": "kitchen",
+        "Jinx addresses the anthill in the front yard": "front_yard",
+        "A strange neighbor arrives on the porch": "porch",
+        "Quill hides FOIA envelopes in the hallway": "hallway",
+        "The family watches their own television broadcast": "living_room",
+    }
+    for topic, expected in cases.items():
+        scene = writer.write_scene("", {}, {}, topic, source="viewer", username="Alex")
+        assert validate_scene(scene).scene == expected

@@ -14,7 +14,12 @@ func _ready() -> void:
 	_build_kitchen()
 	_build_furniture()
 	_build_props()
+	_build_kitchen_set()
+	_build_hallway_set()
+	_build_porch_set()
+	_build_front_yard_set()
 	_build_lights()
+	apply_setting("living_room")
 
 
 func get_stage_anchors() -> Dictionary:
@@ -22,9 +27,104 @@ func get_stage_anchors() -> Dictionary:
 	return _anchors.duplicate(true)
 
 
+func get_stage_profile() -> Dictionary:
+	## Every set exposes the same semantic marks, but seating and entrances vary.
+	var scene_name := str(get_meta("active_setting", "living_room"))
+	var seats: Array = ["couch_center", "couch_left", "couch_right", "chair"]
+	var floor_marks: Array = ["rug_center", "rug_left", "rug_right", "tv_side", "toaster_side"]
+	if scene_name == "front_yard":
+		seats = ["chair"]
+		floor_marks = ["rug_center", "rug_left", "rug_right", "tv_side", "toaster_side", "kitchen_entry"]
+	elif scene_name == "hallway":
+		seats = ["couch_center", "chair"]
+	elif scene_name == "kitchen":
+		seats = ["couch_left", "couch_center", "couch_right"]
+	return {
+		"anchors": get_stage_anchors(),
+		"home_anchors": {
+			"reed": "couch_front_left",
+			"maris": "couch_front_right",
+			"jinx": "rug_left",
+			"quill": "rug_right",
+		},
+		"seat_choices": seats,
+		"floor_choices": floor_marks,
+	}
+
+
 func _build_anchors() -> void:
+	_anchors = _anchors_for_setting("living_room")
+
+
+func _anchors_for_setting(scene_name: String) -> Dictionary:
 	# Positions are floor coordinates. Seated anchors expose the matching cushion height.
-	_anchors = {
+	match scene_name:
+		"kitchen":
+			return {
+				"couch_left": _anchor(Vector3(-1.35, 0.0, -2.40), 0.0, true, 0.66),
+				"couch_center": _anchor(Vector3(0.0, 0.0, -2.40), 0.0, true, 0.66),
+				"couch_right": _anchor(Vector3(1.35, 0.0, -2.40), 0.0, true, 0.66),
+				"couch_front_left": _anchor(Vector3(-1.45, 0.0, -0.42)),
+				"couch_front_right": _anchor(Vector3(1.45, 0.0, -0.42)),
+				"chair": _anchor(Vector3(3.55, 0.0, -1.28), 0.0, true, 0.60),
+				"rug_left": _anchor(Vector3(-2.45, 0.0, -0.20)),
+				"rug_center": _anchor(Vector3(0.0, 0.0, -0.05)),
+				"rug_right": _anchor(Vector3(2.45, 0.0, -0.20)),
+				"kitchen_entry": _anchor(Vector3(-4.45, 0.0, -1.05)),
+				"toaster_side": _anchor(Vector3(-2.80, 0.0, -2.65), 0.14),
+				"tv_side": _anchor(Vector3(3.70, 0.0, -2.40), -0.14),
+				"front_door": _anchor(Vector3(4.55, 0.0, -2.85)),
+			}
+		"hallway":
+			return {
+				"couch_left": _anchor(Vector3(-1.35, 0.0, -2.62), 0.0, true, 0.55),
+				"couch_center": _anchor(Vector3(0.0, 0.0, -2.62), 0.0, true, 0.55),
+				"couch_right": _anchor(Vector3(1.35, 0.0, -2.62), 0.0, true, 0.55),
+				"couch_front_left": _anchor(Vector3(-1.25, 0.0, -1.20)),
+				"couch_front_right": _anchor(Vector3(1.25, 0.0, -1.20)),
+				"chair": _anchor(Vector3(3.25, 0.0, -1.65), 0.0, true, 0.57),
+				"rug_left": _anchor(Vector3(-2.25, 0.0, -0.35)),
+				"rug_center": _anchor(Vector3(0.0, 0.0, -0.22)),
+				"rug_right": _anchor(Vector3(2.25, 0.0, -0.35)),
+				"kitchen_entry": _anchor(Vector3(-4.35, 0.0, -2.80)),
+				"toaster_side": _anchor(Vector3(-3.20, 0.0, -1.45)),
+				"tv_side": _anchor(Vector3(3.20, 0.0, -1.45)),
+				"front_door": _anchor(Vector3(0.0, 0.0, -3.72)),
+			}
+		"porch":
+			return {
+				"couch_left": _anchor(Vector3(-1.55, 0.0, -2.42), 0.0, true, 0.61),
+				"couch_center": _anchor(Vector3(0.0, 0.0, -2.42), 0.0, true, 0.61),
+				"couch_right": _anchor(Vector3(1.55, 0.0, -2.42), 0.0, true, 0.61),
+				"couch_front_left": _anchor(Vector3(-1.15, 0.0, -0.72)),
+				"couch_front_right": _anchor(Vector3(1.15, 0.0, -0.72)),
+				"chair": _anchor(Vector3(3.25, 0.0, -1.55), 0.0, true, 0.60),
+				"rug_left": _anchor(Vector3(-2.25, 0.0, -0.35)),
+				"rug_center": _anchor(Vector3(0.0, 0.0, -0.25)),
+				"rug_right": _anchor(Vector3(2.25, 0.0, -0.35)),
+				"kitchen_entry": _anchor(Vector3(-4.25, 0.0, -1.15)),
+				"toaster_side": _anchor(Vector3(-3.25, 0.0, -2.25)),
+				"tv_side": _anchor(Vector3(3.25, 0.0, -2.25)),
+				"front_door": _anchor(Vector3(0.0, 0.0, -3.68)),
+			}
+		"front_yard":
+			return {
+				"couch_left": _anchor(Vector3(-1.55, 0.0, -2.20)),
+				"couch_center": _anchor(Vector3(0.0, 0.0, -2.25)),
+				"couch_right": _anchor(Vector3(1.55, 0.0, -2.20)),
+				"couch_front_left": _anchor(Vector3(-1.35, 0.0, -0.48)),
+				"couch_front_right": _anchor(Vector3(1.35, 0.0, -0.48)),
+				"chair": _anchor(Vector3(-3.55, 0.0, -1.70), 0.0, true, 0.48),
+				"rug_left": _anchor(Vector3(-2.45, 0.0, -0.18)),
+				"rug_center": _anchor(Vector3(0.0, 0.0, -0.10)),
+				"rug_right": _anchor(Vector3(2.45, 0.0, -0.18)),
+				"kitchen_entry": _anchor(Vector3(-4.25, 0.0, -0.75)),
+				"toaster_side": _anchor(Vector3(-3.15, 0.0, -2.55)),
+				"tv_side": _anchor(Vector3(3.25, 0.0, -2.25)),
+				"front_door": _anchor(Vector3(0.0, 0.0, -3.62)),
+			}
+		_:
+			return {
 		"couch_left": _anchor(Vector3(-1.18, 0.0, -2.56), 0.0, true, 0.60),
 		"couch_center": _anchor(Vector3(0.0, 0.0, -2.56), 0.0, true, 0.60),
 		"couch_right": _anchor(Vector3(1.18, 0.0, -2.56), 0.0, true, 0.60),
@@ -38,7 +138,7 @@ func _build_anchors() -> void:
 		"toaster_side": _anchor(Vector3(-2.72, 0.0, -2.88)),
 		"tv_side": _anchor(Vector3(2.62, 0.0, -2.42)),
 		"front_door": _anchor(Vector3(4.42, 0.0, -2.88)),
-	}
+			}
 
 
 func _anchor(pos: Vector3, yaw: float = 0.0, seated: bool = false, seat_height: float = 0.0) -> Dictionary:
@@ -90,6 +190,21 @@ func _make_materials() -> void:
 		"picture_blue": _mat(Color("4f7894"), 0.86),
 		"picture_gold": _mat(Color("d3a858"), 0.86),
 		"picture_plum": _mat(Color("76536f"), 0.88),
+		"tile": _mat(Color("d9c7a9"), 0.72),
+		"tile_dark": _mat(Color("6f7c78"), 0.78),
+		"cabinet_teal": _mat(Color("416f72"), 0.74),
+		"hall_wall": _mat(Color("d3b98e"), 0.94),
+		"hall_runner": _mat(Color("6b3045"), 0.96),
+		"porch_wood": _mat(Color("79543b"), 0.86),
+		"house_blue": _mat(Color("52758a"), 0.90),
+		"night_sky": _mat(Color("17253d"), 0.96, 0.0, Color("1e3150"), 0.20),
+		"day_sky": _mat(Color("7eb6d7"), 0.96, 0.0, Color("8bc7e5"), 0.24),
+		"grass": _mat(Color("567b42"), 0.98),
+		"grass_dark": _mat(Color("354f30"), 0.98),
+		"concrete": _mat(Color("a99f8d"), 0.92),
+		"fence": _mat(Color("d9cba9"), 0.94),
+		"mailbox": _mat(Color("496075"), 0.62, 0.12),
+		"moon": _mat(Color("f5dda0"), 0.78, 0.0, Color("ffe5a7"), 0.68),
 		"blue_reed": _mat(Color("41699a"), 0.80),
 		"blue_maris": _mat(Color("4c83b5"), 0.80),
 		"blue_jinx": _mat(Color("3d96c0"), 0.80),
@@ -545,6 +660,153 @@ func _build_hidden_bill(parent: Node) -> void:
 	_box(bill, "BillStripe", Vector3(0.19, 0.007, 0.025), Vector3(0.0, 0.010, 0.0), _materials["paper_old"], Vector3.ZERO, false)
 
 
+func _build_kitchen_set() -> void:
+	var set := _group(self, "SetKitchen")
+	set.visible = false
+	_box(set, "TileFloor", Vector3(10.9, 0.12, 8.1), Vector3(0.0, -0.06, -0.25), _materials["tile"])
+	_box(set, "BackWall", Vector3(10.9, 3.65, 0.15), Vector3(0.0, 1.82, -4.15), _materials["wall_cream"])
+	_box(set, "LowerTile", Vector3(10.6, 1.05, 0.05), Vector3(0.0, 0.55, -4.05), _materials["tile_dark"], Vector3.ZERO, false)
+	_box(set, "Ceiling", Vector3(10.9, 0.10, 8.1), Vector3(0.0, 3.62, -0.25), _materials["ceiling"])
+	for x in [-4.3, -3.2, -2.1, -1.0, 0.1, 1.2, 2.3, 3.4, 4.5]:
+		_box(set, "TileLineX_%s" % str(x), Vector3(0.018, 0.008, 7.8), Vector3(x, 0.008, -0.20), _materials["tile_dark"], Vector3.ZERO, false)
+	for z in [-3.2, -2.1, -1.0, 0.1, 1.2, 2.3]:
+		_box(set, "TileLineZ_%s" % str(z), Vector3(10.6, 0.008, 0.018), Vector3(0.0, 0.009, z), _materials["tile_dark"], Vector3.ZERO, false)
+
+	# Full kitchen rather than the living-room pass-through: cabinet wall, sink, fridge, and island.
+	_box(set, "CounterBank", Vector3(6.5, 0.92, 0.72), Vector3(-0.65, 0.48, -3.70), _materials["cabinet_teal"])
+	_box(set, "CounterTop", Vector3(6.75, 0.12, 0.88), Vector3(-0.65, 1.00, -3.66), _materials["wood_light"])
+	for x in [-3.25, -2.15, -1.05, 0.05, 1.15]:
+		_box(set, "LowerDoor_%s" % str(x), Vector3(0.92, 0.70, 0.035), Vector3(x, 0.50, -3.31), _materials["cabinet_teal"])
+		_sphere(set, "LowerKnob_%s" % str(x), 0.025, Vector3(x + 0.30, 0.55, -3.285), _materials["picture_gold"], Vector3.ONE, Vector3.ZERO, false)
+	for x in [-2.85, -1.55, -0.25, 1.05]:
+		_box(set, "UpperCab_%s" % str(x), Vector3(1.08, 0.82, 0.40), Vector3(x, 2.52, -3.88), _materials["cabinet_teal"])
+		_box(set, "UpperFace_%s" % str(x), Vector3(0.94, 0.68, 0.025), Vector3(x, 2.52, -3.66), _materials["wood_light"])
+	_box(set, "Sink", Vector3(1.10, 0.06, 0.52), Vector3(-0.30, 1.075, -3.62), _materials["metal_dark"])
+	_cylinder(set, "FaucetStem", 0.035, 0.035, 0.48, Vector3(-0.30, 1.28, -3.88), _materials["metal"], Vector3.ZERO, Vector3.ONE, 9)
+	_box(set, "FaucetNeck", Vector3(0.055, 0.055, 0.35), Vector3(-0.30, 1.48, -3.70), _materials["metal"])
+
+	var fridge := _group(set, "ActualFridge", Vector3(3.62, 0.0, -3.64))
+	_box(fridge, "Body", Vector3(1.35, 2.62, 0.92), Vector3(0.0, 1.31, 0.0), _materials["appliance"])
+	_box(fridge, "Freezer", Vector3(1.17, 0.70, 0.035), Vector3(0.0, 2.08, 0.48), _materials["metal"])
+	_box(fridge, "Door", Vector3(1.17, 1.52, 0.035), Vector3(0.0, 0.91, 0.48), _materials["appliance"])
+	_box(fridge, "Handle", Vector3(0.07, 0.82, 0.08), Vector3(0.43, 1.22, 0.54), _materials["metal_dark"])
+	_box(fridge, "Veto", Vector3(0.43, 0.30, 0.018), Vector3(-0.22, 1.50, 0.525), _materials["picture_gold"], Vector3(0.0, 0.0, -5.0), false)
+	_label(fridge, "VetoWords", "DINNER\nVETO", Vector3(-0.22, 1.50, 0.545), Color("44351f"), 23, 0.0024)
+
+	var island := _group(set, "Island", Vector3(0.0, 0.0, -1.72))
+	_box(island, "Base", Vector3(3.85, 0.86, 0.94), Vector3(0.0, 0.45, 0.0), _materials["cabinet_teal"])
+	_box(island, "Top", Vector3(4.15, 0.13, 1.15), Vector3(0.0, 0.94, 0.0), _materials["wood_light"])
+	for x in [-1.35, 0.0, 1.35]:
+		_cylinder(island, "StoolSeat_%s" % str(x), 0.28, 0.28, 0.11, Vector3(x, 0.66, 0.82), _materials["couch_light"], Vector3.ZERO, Vector3.ONE, 14)
+		_cylinder(island, "StoolPost_%s" % str(x), 0.045, 0.055, 0.60, Vector3(x, 0.32, 0.82), _materials["metal_dark"], Vector3.ZERO, Vector3.ONE, 9)
+	var toaster := _group(set, "CounterToaster", Vector3(-2.55, 1.07, -3.38))
+	_box(toaster, "Body", Vector3(0.72, 0.42, 0.42), Vector3(0.0, 0.22, 0.0), _materials["metal"])
+	_box(toaster, "SlotA", Vector3(0.48, 0.018, 0.06), Vector3(0.0, 0.44, -0.10), _materials["black"], Vector3.ZERO, false)
+	_box(toaster, "SlotB", Vector3(0.48, 0.018, 0.06), Vector3(0.0, 0.44, 0.10), _materials["black"], Vector3.ZERO, false)
+	_label(set, "KitchenLabel", "THE ACTUAL KITCHEN", Vector3(2.25, 2.78, -4.00), Color("f3dfb8"), 31, 0.0032)
+
+
+func _build_hallway_set() -> void:
+	var set := _group(self, "SetHallway")
+	set.visible = false
+	_box(set, "Floor", Vector3(10.9, 0.12, 8.1), Vector3(0.0, -0.06, -0.25), _materials["floor_dark"])
+	_box(set, "BackWall", Vector3(10.9, 3.65, 0.15), Vector3(0.0, 1.82, -4.15), _materials["hall_wall"])
+	_box(set, "LeftWall", Vector3(0.14, 3.65, 8.1), Vector3(-5.45, 1.82, -0.25), _materials["wall_cream"])
+	_box(set, "RightWall", Vector3(0.14, 3.65, 8.1), Vector3(5.45, 1.82, -0.25), _materials["wall_cream"])
+	_box(set, "Runner", Vector3(3.25, 0.035, 6.7), Vector3(0.0, 0.025, -0.18), _materials["hall_runner"], Vector3.ZERO, false)
+	for z in [-2.75, -1.75, -0.75, 0.25, 1.25, 2.25]:
+		_box(set, "RunnerStripe_%s" % str(z), Vector3(3.05, 0.012, 0.055), Vector3(0.0, 0.050, z), _materials["picture_gold"], Vector3.ZERO, false)
+	# Central exterior door and two suspiciously close interior doors make sneaking readable.
+	_build_simple_door(set, "FrontDoor", Vector3(0.0, 0.0, -4.03), _materials["house_blue"], "OUTSIDE")
+	_build_simple_door(set, "LeftDoor", Vector3(-3.60, 0.0, -4.03), _materials["couch_dark"], "REED")
+	_build_simple_door(set, "RightDoor", Vector3(3.60, 0.0, -4.03), _materials["cabinet_teal"], "ARCHIVE")
+	var bench := _group(set, "HallBench", Vector3(0.0, 0.0, -2.88))
+	_box(bench, "Seat", Vector3(3.45, 0.18, 0.62), Vector3(0.0, 0.55, 0.0), _materials["wood_light"])
+	_box(bench, "Back", Vector3(3.45, 0.68, 0.16), Vector3(0.0, 0.91, -0.26), _materials["wood"])
+	for x in [-1.40, 1.40]:
+		_box(bench, "Leg_%s" % str(x), Vector3(0.16, 0.54, 0.16), Vector3(x, 0.27, 0.0), _materials["wood_edge"])
+	var table := _group(set, "ConsoleTable", Vector3(-3.45, 0.0, -1.55))
+	_box(table, "Top", Vector3(1.65, 0.12, 0.55), Vector3(0.0, 0.86, 0.0), _materials["wood_light"])
+	for x in [-0.68, 0.68]:
+		_box(table, "Leg_%s" % str(x), Vector3(0.12, 0.84, 0.12), Vector3(x, 0.42, 0.0), _materials["wood_edge"])
+	for i in 6:
+		_box(table, "FOIA_%d" % i, Vector3(0.72, 0.018, 0.38), Vector3(0.12 + i * 0.018, 0.94 + i * 0.018, 0.0), _materials["paper_old"], Vector3(0.0, i * 2.0, 0.0), false)
+	_label(set, "EnvelopeLabel", "FOIA × 17", Vector3(-3.35, 1.42, -4.02), Color("4a3425"), 30, 0.0030)
+
+
+func _build_simple_door(parent: Node, name_value: String, pos: Vector3, material: Material, plaque: String) -> void:
+	var door := _group(parent, name_value, pos)
+	_box(door, "Slab", Vector3(1.45, 2.68, 0.12), Vector3(0.0, 1.34, 0.0), material)
+	_box(door, "PanelTop", Vector3(1.08, 0.86, 0.035), Vector3(0.0, 1.94, 0.08), _materials["wood_light"])
+	_box(door, "PanelBottom", Vector3(1.08, 0.88, 0.035), Vector3(0.0, 0.70, 0.08), _materials["wood_light"])
+	_sphere(door, "Knob", 0.065, Vector3(0.50, 1.17, 0.14), _materials["picture_gold"], Vector3(1.0, 1.0, 0.65))
+	_label(door, "Plaque", plaque, Vector3(0.0, 2.37, 0.085), Color("34261e"), 24, 0.0025)
+
+
+func _build_porch_set() -> void:
+	var set := _group(self, "SetPorch")
+	set.visible = false
+	_box(set, "Night", Vector3(12.0, 5.0, 0.12), Vector3(0.0, 2.35, -5.15), _materials["night_sky"], Vector3.ZERO, false)
+	_box(set, "HouseWall", Vector3(10.9, 3.62, 0.18), Vector3(0.0, 1.81, -4.15), _materials["house_blue"])
+	_box(set, "PorchFloor", Vector3(10.9, 0.16, 5.8), Vector3(0.0, -0.02, -1.30), _materials["porch_wood"])
+	for x in [-4.6, -3.6, -2.6, -1.6, -0.6, 0.4, 1.4, 2.4, 3.4, 4.4]:
+		_box(set, "DeckSeam_%s" % str(x), Vector3(0.025, 0.015, 5.65), Vector3(x, 0.075, -1.30), _materials["wood_edge"], Vector3.ZERO, false)
+	_box(set, "Roof", Vector3(11.4, 0.18, 4.0), Vector3(0.0, 3.58, -2.35), _materials["floor_dark"])
+	for x in [-4.55, 4.55]:
+		_box(set, "Post_%s" % str(x), Vector3(0.24, 3.55, 0.24), Vector3(x, 1.77, -0.62), _materials["trim"])
+		_box(set, "Rail_%s" % str(x), Vector3(1.50, 0.18, 0.18), Vector3(x + (-0.73 if x > 0 else 0.73), 0.92, -0.60), _materials["trim"])
+	_build_simple_door(set, "PorchDoor", Vector3(0.0, 0.0, -4.03), _materials["couch_dark"], "BLUE")
+	for x in [-1.25, 1.25]:
+		_box(set, "Window_%s" % str(x), Vector3(1.20, 1.25, 0.035), Vector3(x * 2.15, 2.18, -4.02), _materials["window"], Vector3.ZERO, false)
+		_box(set, "WindowFrameH_%s" % str(x), Vector3(1.35, 0.09, 0.10), Vector3(x * 2.15, 2.18, -3.99), _materials["trim"])
+		_box(set, "WindowFrameV_%s" % str(x), Vector3(0.09, 1.38, 0.10), Vector3(x * 2.15, 2.18, -3.99), _materials["trim"])
+	var bench := _group(set, "PorchBench", Vector3(0.0, 0.0, -2.68))
+	_box(bench, "Seat", Vector3(4.15, 0.18, 0.82), Vector3(0.0, 0.56, 0.0), _materials["wood_light"])
+	_box(bench, "Back", Vector3(4.15, 0.78, 0.18), Vector3(0.0, 0.96, -0.32), _materials["wood"])
+	for x in [-1.70, 1.70]:
+		_box(bench, "Leg_%s" % str(x), Vector3(0.16, 0.55, 0.16), Vector3(x, 0.28, 0.0), _materials["wood_edge"])
+	# Porch light and moon make the night set unmistakable in a thumbnail.
+	_box(set, "LampBracket", Vector3(0.12, 0.32, 0.18), Vector3(1.04, 2.58, -3.96), _materials["metal_dark"])
+	_sphere(set, "PorchLamp", 0.18, Vector3(1.04, 2.36, -3.82), _materials["orange_glow"], Vector3(0.78, 1.15, 0.60), Vector3.ZERO, false)
+	_sphere(set, "Moon", 0.46, Vector3(-4.20, 2.75, -5.00), _materials["moon"], Vector3.ONE, Vector3.ZERO, false)
+	for p in [Vector3(-3.2, 2.5, -5.0), Vector3(-2.8, 3.1, -5.0), Vector3(3.1, 2.8, -5.0), Vector3(4.0, 3.2, -5.0)]:
+		_sphere(set, "Star_%s" % str(p), 0.035, p, _materials["moon"], Vector3.ONE, Vector3.ZERO, false)
+
+
+func _build_front_yard_set() -> void:
+	var set := _group(self, "SetFrontYard")
+	set.visible = false
+	_box(set, "Sky", Vector3(12.0, 5.0, 0.12), Vector3(0.0, 2.35, -5.15), _materials["day_sky"], Vector3.ZERO, false)
+	_box(set, "Lawn", Vector3(12.0, 0.12, 8.5), Vector3(0.0, -0.06, -0.20), _materials["grass"])
+	_box(set, "HouseFacade", Vector3(7.30, 3.10, 0.18), Vector3(0.0, 1.55, -4.25), _materials["house_blue"])
+	_box(set, "Roof", Vector3(8.1, 0.28, 1.0), Vector3(0.0, 3.28, -4.20), _materials["floor_dark"], Vector3(0.0, 0.0, 0.0))
+	_build_simple_door(set, "YardDoor", Vector3(0.0, 0.0, -4.10), _materials["couch_dark"], "HOME")
+	for x in [-2.25, 2.25]:
+		_box(set, "Window_%s" % str(x), Vector3(1.28, 1.30, 0.035), Vector3(x, 2.08, -4.13), _materials["window"], Vector3.ZERO, false)
+		_box(set, "WindowTrimTop_%s" % str(x), Vector3(1.50, 0.10, 0.10), Vector3(x, 2.78, -4.08), _materials["trim"])
+		_box(set, "WindowTrimBottom_%s" % str(x), Vector3(1.50, 0.10, 0.10), Vector3(x, 1.38, -4.08), _materials["trim"])
+	_box(set, "Walk", Vector3(2.20, 0.04, 6.7), Vector3(0.0, 0.035, -0.22), _materials["concrete"], Vector3.ZERO, false)
+	_box(set, "Sidewalk", Vector3(12.0, 0.05, 1.05), Vector3(0.0, 0.04, 2.55), _materials["concrete"], Vector3.ZERO, false)
+	for x in [-5.0, -4.0, -3.0, 3.0, 4.0, 5.0]:
+		_box(set, "FencePost_%s" % str(x), Vector3(0.15, 1.05, 0.15), Vector3(x, 0.52, -1.85), _materials["fence"])
+		_box(set, "FencePicket_%s" % str(x), Vector3(0.68, 0.76, 0.10), Vector3(x, 0.42, -1.84), _materials["fence"])
+	var tree := _group(set, "FrontTree", Vector3(-4.05, 0.0, -2.60))
+	_cylinder(tree, "Trunk", 0.28, 0.38, 2.60, Vector3(0.0, 1.30, 0.0), _materials["wood"] , Vector3.ZERO, Vector3.ONE, 10)
+	for p in [Vector3(-0.45, 2.45, 0.0), Vector3(0.38, 2.62, 0.0), Vector3(0.0, 3.05, -0.05)]:
+		_sphere(tree, "Crown_%s" % str(p), 0.88, p, _materials["plant"], Vector3(1.15, 0.84, 0.72))
+	var mailbox := _group(set, "Mailbox", Vector3(4.12, 0.0, 1.52))
+	_cylinder(mailbox, "Post", 0.08, 0.09, 1.25, Vector3(0.0, 0.62, 0.0), _materials["wood_edge"], Vector3.ZERO, Vector3.ONE, 8)
+	_box(mailbox, "Box", Vector3(0.82, 0.48, 0.62), Vector3(0.0, 1.35, 0.0), _materials["mailbox"])
+	_box(mailbox, "Flag", Vector3(0.08, 0.54, 0.08), Vector3(0.48, 1.55, 0.0), _materials["couch"])
+	# Jinx's anthill has a tiny sign so the recurring audience metaphor reads visually.
+	var hill := _group(set, "Anthill", Vector3(2.75, 0.0, -0.65))
+	_sphere(hill, "Mound", 0.43, Vector3(0.0, 0.18, 0.0), _materials["floor"], Vector3(1.35, 0.48, 1.0))
+	_sphere(hill, "Opening", 0.10, Vector3(0.0, 0.34, 0.30), _materials["black"], Vector3(1.0, 0.52, 0.28), Vector3.ZERO, false)
+	_box(hill, "SignPost", Vector3(0.05, 0.60, 0.05), Vector3(0.52, 0.35, 0.0), _materials["wood_edge"])
+	_box(hill, "Sign", Vector3(0.76, 0.34, 0.05), Vector3(0.52, 0.68, 0.0), _materials["paper_old"])
+	_label(hill, "SignWords", "AUDIENCE", Vector3(0.52, 0.68, 0.035), Color("3c3029"), 21, 0.0022)
+
+
 func _build_lights() -> void:
 	var lights := _group(self, "SitcomLighting")
 
@@ -610,71 +872,105 @@ func _build_lights() -> void:
 
 
 func apply_setting(scene_name: String) -> void:
+	var valid := ["living_room", "kitchen", "hallway", "porch", "front_yard"]
+	var active := scene_name if scene_name in valid else "living_room"
+	set_meta("active_setting", active)
+	_anchors = _anchors_for_setting(active)
+
 	var env := get_node_or_null("WarmSitcomEnvironment") as WorldEnvironment
 	var lights := get_node_or_null("SitcomLighting")
+	var key: DirectionalLight3D = lights.get_node_or_null("WarmKey_ShadowCaster") if lights else null
+	var fill: OmniLight3D = lights.get_node_or_null("SoftFill_NoShadows") if lights else null
 	var kitchen_fill: OmniLight3D = lights.get_node_or_null("KitchenFill_NoShadows") if lights else null
 	var lamp: OmniLight3D = lights.get_node_or_null("LampPractical_NoShadows") if lights else null
 	var face: SpotLight3D = lights.get_node_or_null("FaceLight_NoShadows") if lights else null
-	var furniture := get_node_or_null("Furniture")
-	var story_props := get_node_or_null("StoryProps")
-	var wall_decor: Node = story_props.get_node_or_null("WallDecor") if story_props else null
-	var kitchen := get_node_or_null("KitchenPassThrough")
+	var living_names := ["ArchitecturalShell", "KitchenPassThrough", "Furniture", "StoryProps"]
+	var set_names := {
+		"kitchen": "SetKitchen",
+		"hallway": "SetHallway",
+		"porch": "SetPorch",
+		"front_yard": "SetFrontYard",
+	}
 	var clear := Color(0.145, 0.118, 0.098, 1)
 
-	# Restore living-room defaults before applying a named set.
-	if furniture:
-		furniture.visible = true
-	if story_props:
-		story_props.visible = true
-	if wall_decor:
-		wall_decor.visible = true
-	if kitchen:
-		kitchen.visible = true
+	for node_name in living_names:
+		var living_part := get_node_or_null(str(node_name)) as Node3D
+		if living_part:
+			living_part.visible = active == "living_room"
+	for set_name in set_names.values():
+		var alternate := get_node_or_null(str(set_name)) as Node3D
+		if alternate:
+			alternate.visible = false
+	if active != "living_room":
+		var selected := get_node_or_null(str(set_names.get(active, ""))) as Node3D
+		if selected:
+			selected.visible = true
+
+	# Restore studio-light defaults before applying the location's time and palette.
+	if key:
+		key.light_color = Color("ffe2b5")
+		key.light_energy = 0.92
+	if fill:
+		fill.light_color = Color("ffd9ab")
+		fill.light_energy = 1.12
 	if kitchen_fill:
 		kitchen_fill.light_energy = 0.48
 	if lamp:
 		lamp.light_energy = 0.72
 	if face:
+		face.light_color = Color("fff0d2")
 		face.light_energy = 0.72
 
-	match scene_name:
+	match active:
 		"kitchen":
 			clear = Color(0.16, 0.12, 0.08, 1)
-			if furniture:
-				furniture.visible = false
-			if wall_decor:
-				wall_decor.visible = false
 			if kitchen_fill:
-				kitchen_fill.light_energy = 1.15
+				kitchen_fill.light_energy = 1.35
+			if fill:
+				fill.light_energy = 1.28
 			if lamp:
-				lamp.light_energy = 0.45
+				lamp.light_energy = 0.25
 		"front_yard":
 			clear = Color(0.35, 0.55, 0.72, 1)
-			if kitchen:
-				kitchen.visible = false
+			if key:
+				key.light_color = Color("fff1c8")
+				key.light_energy = 1.12
+			if fill:
+				fill.light_color = Color("d9efff")
+				fill.light_energy = 0.95
 			if face:
-				face.light_energy = 0.35
+				face.light_color = Color("e4f2ff")
+				face.light_energy = 0.42
 			if lamp:
-				lamp.light_energy = 0.2
+				lamp.light_energy = 0.0
 			if kitchen_fill:
-				kitchen_fill.light_energy = 0.15
+				kitchen_fill.light_energy = 0.0
 		"porch":
 			clear = Color(0.10, 0.12, 0.18, 1)
-			if kitchen:
-				kitchen.visible = false
+			if key:
+				key.light_color = Color("9bb7d8")
+				key.light_energy = 0.38
+			if fill:
+				fill.light_color = Color("8eaed0")
+				fill.light_energy = 0.55
 			if lamp:
-				lamp.light_energy = 1.1
+				lamp.light_energy = 1.35
 			if face:
-				face.light_energy = 0.4
+				face.light_color = Color("ffd39a")
+				face.light_energy = 0.74
 		"hallway":
 			clear = Color(0.12, 0.10, 0.09, 1)
+			if fill:
+				fill.light_energy = 0.82
 			if face:
-				face.light_energy = 0.5
+				face.light_energy = 0.66
 			if lamp:
-				lamp.light_energy = 0.35
+				lamp.light_energy = 0.52
 		_:
 			pass
 
 	if env and env.environment:
 		env.environment.background_color = clear
+		env.environment.ambient_light_color = Color("abc8dd") if active in ["front_yard", "porch"] else Color("d8b581")
+		env.environment.ambient_light_energy = 0.58 if active == "front_yard" else 0.47
 	RenderingServer.set_default_clear_color(clear)

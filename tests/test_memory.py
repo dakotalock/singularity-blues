@@ -119,3 +119,14 @@ def test_pin_episode_raises_importance(tmp_path):
     mem.pin_episode(42)
     after = next(m for m in mem.list_memories(limit=50) if m.get("episode_id") == 42)
     assert after["importance"] >= 0.95
+
+
+def test_recent_episodes_include_writer_set_history(tmp_path):
+    mem = seed(tmp_path / "t.db", force=True)
+    mem.insert_episode(
+        "The porch remembers",
+        "viewer",
+        {"scene": "porch", "topic": "The porch remembers", "beats": []},
+    )
+    recent = mem.retrieve("porch")["recent_episodes"]
+    assert recent[0]["scene"] == "porch"

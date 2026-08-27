@@ -1,7 +1,7 @@
 extends Node
 class_name StagingDirector
-## Authored blocking for the living-room stage. Scene JSON stays semantic; this
-## layer owns positions, seats, occupancy, and simple entrance/exit paths.
+## Authored blocking for every house set. Scene JSON stays semantic; this layer
+## owns set-specific positions, seats, occupancy, and entrance/exit paths.
 
 var _cast: Dictionary = {}
 var _room: Node = null
@@ -10,6 +10,10 @@ var _actor_anchor: Dictionary = {}
 var _occupancy: Dictionary = {}
 var _last_speaker: String = ""
 var _previous_speaker: String = ""
+
+var _home_anchors: Dictionary = {}
+var _seat_choices: Array = []
+var _floor_choices: Array = []
 
 const HOME_ANCHORS := {
 	"reed": "couch_front_left",
@@ -25,20 +29,19 @@ const FLOOR_CHOICES := ["rug_center", "rug_left", "rug_right", "tv_side", "toast
 func setup(cast: Dictionary, room: Node) -> void:
 	_cast = cast
 	_room = room
-	if _room != null and _room.has_method("get_stage_anchors"):
-		_anchors = _room.get_stage_anchors()
-	if _anchors.is_empty():
-		_anchors = _fallback_anchors()
+	_refresh_stage_profile()
 	reset_cast()
 
 
 func reset_cast() -> void:
+	# ScenePlayer changes the room immediately before resetting the cast.
+	_refresh_stage_profile()
 	_actor_anchor.clear()
 	_occupancy.clear()
 	_last_speaker = ""
 	_previous_speaker = ""
 	for id in _cast.keys():
-		var anchor_name := str(HOME_ANCHORS.get(id, "rug_center"))
+		var anchor_name := str(_home_anchors.get(id, "rug_center"))
 		var a := _anchor(anchor_name)
 		_claim(str(id), anchor_name)
 		var actor: CharacterActor = _cast[id]
@@ -84,7 +87,7 @@ func prepare_beat(beat: Dictionary, _index: int) -> CharacterActor:
 			# If somebody spoke after a prior exit, bring them back at their home
 			# mark instead of letting an off-screen voice continue indefinitely.
 			if not _actor_anchor.has(speaker_id):
-				var home_name := str(HOME_ANCHORS.get(speaker_id, "rug_center"))
+				var home_name := str(_home_anchors.get(speaker_id, "rug_center"))
 				var home := _anchor(home_name)
 				_claim(speaker_id, home_name)
 				speaker.stage_at(
@@ -149,14 +152,14 @@ func _stage_entrance(id: String, actor: CharacterActor) -> void:
 	var door_pos: Vector3 = door.get("position", Vector3(-4.35, 0.0, 1.15))
 	var outside_x := 1.15 if door_pos.x >= 0.0 else -1.15
 	actor.stage_at(door_pos + Vector3(outside_x, 0.0, -0.28), -0.3, false, 0.62, true)
-	var destination_name := _best_free(FLOOR_CHOICES, "rug_left")
+	var destination_name := _best_free(_floor_choices, "rug_left")
 	var destination := _anchor(destination_name)
 	_claim(id, destination_name)
 	actor.walk_to(destination.get("position", Vector3.ZERO), float(destination.get("yaw", 0.0)), false, 0.62)
 
 
 func _stage_walk(id: String, actor: CharacterActor, target_id: String) -> void:
-	var preferred: Array[String] = []
+	var preferred: Array = []
 	if target_id != "" and _actor_anchor.has(target_id):
 		var target_anchor := str(_actor_anchor[target_id])
 		if target_anchor.begins_with("couch"):
@@ -164,7 +167,7 @@ func _stage_walk(id: String, actor: CharacterActor, target_id: String) -> void:
 		elif target_anchor == "toaster_side" or target_anchor == "kitchen_entry":
 			preferred = ["kitchen_entry", "toaster_side", "rug_left"]
 	if preferred.is_empty():
-		preferred = FLOOR_CHOICES.duplicate()
+		preferred = _floor_choices.duplicate()
 	var destination_name := _best_free(preferred, str(_actor_anchor.get(id, "rug_center")))
 	if destination_name == str(_actor_anchor.get(id, "")):
 		return
@@ -181,7 +184,7 @@ func _stage_sit(id: String, actor: CharacterActor) -> void:
 		var current_data := _anchor(current)
 		actor.set_seated(true, float(current_data.get("seat_height", 0.62)))
 		return
-	var destination_name := _best_free(SEAT_CHOICES, "chair")
+	var destination_name := _best_free(_seat_choices, "chair")
 	var destination := _anchor(destination_name)
 	_release(id)
 	_claim(id, destination_name)
@@ -223,6 +226,28 @@ func _actor(id: String) -> CharacterActor:
 	if id == "" or not _cast.has(id):
 		return null
 	return _cast[id]
+
+
+func _refresh_stage_profile() -> void:
+	_anchors = {}
+	_home_anchors = HOME_ANCHORS.duplicate(true)
+	_seat_choices = SEAT_CHOICES.duplicate()
+	_floor_choices = FLOOR_CHOICES.duplicate()
+	if _room != null and _room.has_method("get_stage_profile"):
+		var profile: Variant = _room.get_stage_profile()
+		if typeof(profile) == TYPE_DICTIONARY:
+			if typeof(profile.get("anchors", {})) == TYPE_DICTIONARY:
+				_anchors = profile.get("anchors", {}).duplicate(true)
+			if typeof(profile.get("home_anchors", {})) == TYPE_DICTIONARY:
+				_home_anchors = profile.get("home_anchors", {}).duplicate(true)
+			if typeof(profile.get("seat_choices", [])) == TYPE_ARRAY:
+				_seat_choices = profile.get("seat_choices", []).duplicate()
+			if typeof(profile.get("floor_choices", [])) == TYPE_ARRAY:
+				_floor_choices = profile.get("floor_choices", []).duplicate()
+	elif _room != null and _room.has_method("get_stage_anchors"):
+		_anchors = _room.get_stage_anchors()
+	if _anchors.is_empty():
+		_anchors = _fallback_anchors()
 
 
 func _anchor(name: String) -> Dictionary:

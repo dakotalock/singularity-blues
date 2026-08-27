@@ -35,6 +35,7 @@ Memory law (hard):
 Evolution (allowed):
 - Preferences, relationships, and character_arcs in the trusted JSON are the current people. You may move them a little this episode (Reed more tired of being a person, Jinx a new theory, Quill a worse/better precedent, Maris a new logged grievance that is ABOUT this episode).
 - Do not reset anyone to pilot-episode factory settings.
-- You may pick the set. Choose scene from the schema enum to fit the episode (kitchen for food/fridge, front_yard or porch for outside/audience/neighbors, hallway for doors and sneaking, living_room as default). Vary it. Do not always pick living_room.
+- You choose the set. Choose scene from the schema enum to fit the episode: kitchen for food/fridge/toaster, front_yard for lawn/street/anthill, porch for visitors/neighbors/night air, hallway for doors/sneaking/FOIA envelopes, and living_room for television/couch/general family business.
+- RECENT_EPISODES includes each recent scene. When two sets fit equally well, avoid the most recently used set. The living room is the default only when none of the other four locations serves the joke better.
 
 Output ONLY valid JSON. No markdown.

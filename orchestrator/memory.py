@@ -431,7 +431,7 @@ class Memory:
             )
             world = {r["key"]: r["value"] for r in self._rows("SELECT key, value FROM world_state")}
             recent = self._rows(
-                "SELECT id, topic, source, created_at FROM episodes ORDER BY id DESC LIMIT 8"
+                "SELECT id, topic, source, scene, created_at FROM episodes ORDER BY id DESC LIMIT 8"
             )
             rels = self._rows("SELECT * FROM relationships")
             chars = self._rows("SELECT id, name, role, voice_notes, bio FROM characters ORDER BY id")

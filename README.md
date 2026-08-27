@@ -110,7 +110,7 @@ Sleeps for the scene’s audio duration between episodes.
 .venv/bin/uvicorn web.app:app --host 0.0.0.0 --port 8000
 ```
 
-- `GET /` — living-room stage (`?broadcast=1` hides chrome)
+- `GET /` — five-set player: living room, kitchen, hallway, porch, and front yard (`?broadcast=1` hides chrome and player controls)
 - `POST /episode` — `{ "topic": "...", "username": "..." }` (untrusted; moderated; spends one credit when Stripe is configured)
 - `GET /episode/status` — includes `eta_seconds` / `eta_copy` (`Your episode airs in about Xm` or `on now`)
 - `POST /checkout` — `{ "bundle": "1"|"5"|"10"|"20" }`

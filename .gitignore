@@ -29,3 +29,4 @@ renderer/.godot/
 
 # Godot web engine binary (assembled at build from tools/web-engine-parts)
 web/stage/*.wasm
+web/stage/*.pck

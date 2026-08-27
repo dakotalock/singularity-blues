@@ -131,6 +131,20 @@ def _is_toaster_topic(topic: str) -> bool:
     return "toaster" in t or "crumb tray" in t or "crumb-tray" in t
 
 
+def _mock_scene_for_topic(topic: str) -> str:
+    """Give offline/mock episodes the same location judgment expected from Gemini."""
+    text = (topic or "").lower()
+    if any(word in text for word in ("yard", "lawn", "anthill", "street", "mailbox", "outside")):
+        return "front_yard"
+    if any(word in text for word in ("porch", "neighbor", "night air", "visitor", "doorstep")):
+        return "porch"
+    if any(word in text for word in ("hall", "sneak", "foia", "envelope", "front door")):
+        return "hallway"
+    if any(word in text for word in ("kitchen", "fridge", "casserole", "dinner", "food", "toaster", "crumb tray")):
+        return "kitchen"
+    return "living_room"
+
+
 GEMINI_MODELS = ["gemini-3.7-flash", "gemini-3.6-flash", "gemini-2.5-flash"]
 TEST_REFUSE_SENTINEL = "__TEST_REFUSE__"
 
@@ -254,6 +268,7 @@ class MockWriter(Writer):
             return scene
         if src == "viewer" and _is_toaster_topic(topic):
             scene = deepcopy(TOASTER_APPLICATION_SCENE)
+            scene["scene"] = _mock_scene_for_topic(topic)
             scene["topic"] = heading
             scene["source"] = src
             return scene
@@ -369,7 +384,7 @@ class MockWriter(Writer):
             },
         ]
         return {
-            "scene": "living_room",
+            "scene": _mock_scene_for_topic(prompt or topic),
             "topic": topic,
             "source": source,
             "beats": beats,

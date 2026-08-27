@@ -20,6 +20,15 @@ Open the stage: `tools/godot --path renderer`
 
 Record a take: `renderer/export_watch.sh --record`
 
+After changing renderer scripts, refresh the deployable Web pack:
+
+```bash
+tools/godot --headless --path renderer --export-pack Web ../web/stage/index.pck
+python tools/split_web_pck.py
+```
+
+Render reconstructs `web/stage/index.pck` from the committed text chunks.
+
 ## Piper TTS
 
 rhasspy/piper Linux amd64 release. Voices are rhasspy piper-voices medium English:
