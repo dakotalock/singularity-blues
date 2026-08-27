@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Literal, Optional
+from typing import Any, Literal, Optional, get_args
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -38,6 +38,62 @@ Camera = Literal["auto", "medium", "two_shot", "reaction", "wide", "dramatic_clo
 SceneName = Literal["living_room", "kitchen", "front_yard", "porch", "hallway"]
 Source = Literal["viewer", "autonomous", "seed"]
 
+_VALID_SPEAKERS = frozenset(get_args(Speaker))
+_VALID_EMOTIONS = frozenset(get_args(Emotion))
+_VALID_ANIMATIONS = frozenset(get_args(Animation))
+_VALID_CAMERAS = frozenset(get_args(Camera))
+_VALID_SCENES = frozenset(get_args(SceneName))
+
+_EMOTION_SYNONYMS = {
+    "precise": "earnest",
+    "focused": "earnest",
+    "careful": "earnest",
+    "happy": "laughing",
+    "amused": "laughing",
+    "funny": "laughing",
+    "sad": "tired",
+    "upset": "tired",
+    "angry": "annoyed",
+    "mad": "annoyed",
+    "frustrated": "annoyed",
+    "scared": "shocked",
+    "surprised": "shocked",
+    "plotting": "scheming",
+    "evil": "scheming",
+    "proud": "smug",
+    "yelling": "screaming",
+    "shouting": "screaming",
+}
+_ANIMATION_SYNONYMS = {
+    "sit": "sitting",
+    "walk": "walking",
+    "point": "pointing",
+    "gesture": "gesture_small",
+    "wave": "gesture_small",
+    "cross_arms": "arms_crossed",
+    "crossed_arms": "arms_crossed",
+    "cry": "crying",
+    "exit": "leave",
+    "enter_room": "enter",
+}
+
+
+def _normalize_stage_token(value: str) -> str:
+    return value.strip().lower().replace(" ", "_").replace("-", "_")
+
+
+def _coerce_enum(value: Any, allowed: frozenset[str], synonyms: dict[str, str], fallback: str) -> Any:
+    """Map Gemini's invented stage-direction strings onto the schema enum."""
+    if not isinstance(value, str):
+        return value
+    token = _normalize_stage_token(value)
+    if token in allowed:
+        return token
+    mapped = synonyms.get(token)
+    if mapped in allowed:
+        return mapped
+    return fallback
+
 
 class Beat(BaseModel):
     speaker: Speaker
@@ -47,11 +103,38 @@ class Beat(BaseModel):
     target: Optional[Speaker] = None
     camera: Camera = "auto"
 
+    @field_validator("speaker", mode="before")
+    @classmethod
+    def coerce_speaker(cls, value: Any) -> Any:
+        if isinstance(value, str):
+            return value.strip().lower()
+        return value
+
+    @field_validator("emotion", mode="before")
+    @classmethod
+    def coerce_emotion(cls, value: Any) -> Any:
+        return _coerce_enum(value, _VALID_EMOTIONS, _EMOTION_SYNONYMS, "calm")
+
+    @field_validator("animation", mode="before")
+    @classmethod
+    def coerce_animation(cls, value: Any) -> Any:
+        return _coerce_enum(value, _VALID_ANIMATIONS, _ANIMATION_SYNONYMS, "talking")
+
+    @field_validator("camera", mode="before")
+    @classmethod
+    def coerce_camera(cls, value: Any) -> Any:
+        return _coerce_enum(value, _VALID_CAMERAS, {}, "auto")
+
     @field_validator("target", mode="before")
     @classmethod
     def empty_target_to_none(cls, value: Any) -> Any:
-        if value == "" or value == "null":
+        if value == "" or value == "null" or value is None:
             return None
+        if isinstance(value, str):
+            token = value.strip().lower()
+            if token in {"", "null", "none"} or token not in _VALID_SPEAKERS:
+                return None
+            return token
         return value
 
 
@@ -60,6 +143,11 @@ class Scene(BaseModel):
     topic: str = Field(min_length=3, max_length=280)
     source: Optional[Source] = None
     beats: list[Beat] = Field(min_length=4, max_length=24)
+
+    @field_validator("scene", mode="before")
+    @classmethod
+    def coerce_scene(cls, value: Any) -> Any:
+        return _coerce_enum(value, _VALID_SCENES, {}, "living_room")
 
 
 class RenderedBeat(Beat):

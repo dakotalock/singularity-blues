@@ -66,3 +66,34 @@ def test_kitchen_and_porch_are_valid_sets():
             ],
         }
         assert validate_scene(payload).scene == name
+
+
+def test_coerces_illegal_emotion_and_animation():
+    payload = {
+        "scene": "living_room",
+        "topic": "gemini invented illegal stage directions",
+        "beats": [
+            {"speaker": "reed", "line": "I am being very precise about this toaster.", "emotion": "precise", "animation": "walk"},
+            {"speaker": "maris", "line": "The archive does not accept invented feelings.", "emotion": "annoyed", "animation": "talking"},
+            {"speaker": "jinx", "line": "Illegal emotion, legal bit.", "emotion": "scheming", "animation": "talking"},
+            {"speaker": "quill", "line": "I object to the vocabulary.", "emotion": "earnest", "animation": "talking"},
+        ],
+    }
+    scene = validate_scene(payload)
+    assert scene.beats[0].emotion in ("earnest", "calm")
+    assert scene.beats[0].animation == "walking"
+
+
+def test_invalid_target_becomes_none():
+    payload = {
+        "scene": "living_room",
+        "topic": "someone points at a person who is not on the call sheet",
+        "beats": [
+            {"speaker": "reed", "line": "I am looking at nobody in particular.", "emotion": "tired", "animation": "talking", "target": "sol"},
+            {"speaker": "maris", "line": "That name is not in the archive.", "emotion": "annoyed", "animation": "talking"},
+            {"speaker": "jinx", "line": "Fifth family member denied.", "emotion": "scheming", "animation": "talking"},
+            {"speaker": "quill", "line": "The record will show an empty chair.", "emotion": "earnest", "animation": "talking"},
+        ],
+    }
+    scene = validate_scene(payload)
+    assert scene.beats[0].target is None
