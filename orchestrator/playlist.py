@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from orchestrator import DATA_DIR, NOW_PLAYING_PATH, ROOT, TTS_DIR
-from orchestrator.tts import render, write_now_playing
+from orchestrator.tts import write_now_playing
 
 PLAYLIST_PATH = DATA_DIR / "playlist.json"
 GRACE_SEC = 12.0
@@ -33,16 +33,9 @@ def _packet_wav_ok(packet: dict[str, Any]) -> bool:
     if len(beats) < 4:
         return False
     for beat in beats:
-        audio = str(beat.get("audio") or "")
+        audio = str(beat.get("audio") or "").strip()
         if not audio:
             return False
-        name = Path(audio).name
-        if (TTS_DIR / name).is_file():
-            continue
-        candidate = ROOT / audio
-        if candidate.is_file():
-            continue
-        return False
     return True
 
 
@@ -289,52 +282,122 @@ def pin(packet: dict[str, Any]) -> dict[str, Any]:
         return _publish(state)
 
 
-def _ingest_archived(items: list[dict[str, Any]]) -> None:
-    """Re-voice archive scripts. Put the newest on air first, then fill the rerun pool."""
-    if not items:
+def absorb(packet: dict[str, Any]) -> None:
+    """Append a voiced episode to the rerun pool without interrupting now-playing."""
+    if not packet or not packet.get("beats") or not _packet_wav_ok(packet):
         return
-    from orchestrator.tts import render as render_scene
-
     with _lock:
         state = _load()
-        have = {p.get("episode_id") for p in state["packets"]}
-    published = False
-    for item in reversed(list(items)):
-        eid = item.get("id")
-        scene = item.get("scene") or {}
-        if eid is None or eid in have or not scene.get("beats"):
-            continue
-        packet = render_scene(scene, int(eid))
-        packet["source"] = scene.get("source") or "viewer"
-        have.add(eid)
-        if not published:
-            pin(packet)
-            published = True
-        else:
-            with _lock:
-                state = _load()
-                ids = {p.get("episode_id") for p in state["packets"]}
-                if packet.get("episode_id") not in ids:
-                    state["packets"].append(packet)
-                    _save(state)
+        stored = deepcopy(packet)
+        real_id = stored.get("show_episode_id", stored.get("episode_id"))
+        stored["show_episode_id"] = real_id
+        packets = state["packets"]
+        replaced = False
+        if real_id is not None:
+            for i, existing in enumerate(packets):
+                if existing.get("episode_id") == real_id or existing.get("show_episode_id") == real_id:
+                    packets[i] = stored
+                    replaced = True
+                    break
+        if not replaced:
+            packets.append(stored)
+        _save(state)
+        try:
+            from orchestrator import archive
+            archive.upsert_episode(stored)
+        except Exception:
+            pass
+
+
+def _enqueue_backfill(item: dict[str, Any]) -> None:
+    from orchestrator.voice_queue import LOW, submit
+
+    scene = item.get("scene") or {}
+    eid = int(item["id"])
+    source = scene.get("source") or "viewer"
+
+    def job(scene=scene, eid=eid, source=source) -> None:
+        from orchestrator.tts import render
+
+        packet = render(scene, eid)
+        packet["source"] = source or packet.get("source") or "viewer"
+        absorb(packet)
+
+    submit(LOW, job)
 
 
 def ensure_voiced_boot(mem) -> dict[str, Any]:
-    """Start on a random rerun. Seed is last resort when the pool is empty. No writer call."""
+    """Restore voiced packets from manifests; backfill unvoiced on the Piper queue."""
     from copy import deepcopy as dc
 
     from orchestrator import archive
     from orchestrator.gemini import TOASTER_APPLICATION_SCENE
+    from orchestrator.voice_queue import HIGH, start as start_queue, voice_episode
 
+    start_queue()
     try:
         archive.init()
         try:
             mem.restore_from_archive()
         except Exception:
             pass
-        _ingest_archived(archive.list_scenes())
     except Exception:
         pass
+
+    voiced: list[dict[str, Any]] = []
+    try:
+        voiced = archive.list_voiced_packets() or []
+    except Exception:
+        voiced = []
+
+    if voiced:
+        for pkt in voiced:
+            absorb(pkt)
+        published = {"episode_id": None, "scene": None, "topic": None, "beats": []}
+        with _lock:
+            state = _load()
+            if state["packets"]:
+                state["index"] = _random_index(state["packets"])
+                state["airing"] = max(1, int(state["airing"] or 0) + 1)
+                state["started_at"] = time.time()
+                _save(state)
+                published = _publish(state)
+        try:
+            scenes = archive.list_scenes() or []
+            have = archive.voiced_ids() or set()
+        except Exception:
+            scenes, have = [], set()
+        for item in reversed(list(scenes)):
+            eid = item.get("id")
+            scene = item.get("scene") or {}
+            if eid is None or eid in have or not scene.get("beats"):
+                continue
+            _enqueue_backfill(item)
+        return published if published.get("beats") else current()
+
+    scenes: list[dict[str, Any]] = []
+    try:
+        scenes = archive.list_scenes() or []
+    except Exception:
+        scenes = []
+    items = [
+        it
+        for it in reversed(list(scenes))
+        if it.get("id") is not None and (it.get("scene") or {}).get("beats")
+    ]
+    if items:
+        first = items[0]
+        scene = first.get("scene") or {}
+        packet = voice_episode(
+            scene,
+            int(first["id"]),
+            priority=HIGH,
+            source=scene.get("source") or "viewer",
+        )
+        served = pin(packet)
+        for item in items[1:]:
+            _enqueue_backfill(item)
+        return served
 
     with _lock:
         state = _load()
@@ -352,8 +415,7 @@ def ensure_voiced_boot(mem) -> dict[str, Any]:
     scene = dc(TOASTER_APPLICATION_SCENE)
     scene["source"] = "seed"
     episode_id = mem.insert_episode(scene.get("topic") or "seed", "seed", scene)
-    packet = render(scene, episode_id)
-    packet["source"] = "seed"
+    packet = voice_episode(scene, episode_id, priority=HIGH, source="seed")
     return pin(packet)
 
 
@@ -382,8 +444,9 @@ def _recover_random_from_db(mem) -> dict[str, Any] | None:
     preferred = [m for m in mapped if m[1] != "seed"]
     pool = preferred or mapped
     episode_id, source, scene = _rng.choice(pool)
-    packet = render(scene, episode_id)
-    packet["source"] = source or "viewer"
+    from orchestrator.voice_queue import HIGH, voice_episode
+
+    packet = voice_episode(scene, episode_id, priority=HIGH, source=source or "viewer")
     return packet
 
 
