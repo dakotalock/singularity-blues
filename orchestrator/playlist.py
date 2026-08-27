@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 import random
 import threading
 import time
@@ -112,16 +113,24 @@ def _random_index(packets: list[dict[str, Any]], avoid: int | None = None) -> in
 
 
 def _empty_state() -> dict[str, Any]:
-    return {"packets": [], "index": 0, "airing": 0, "started_at": 0.0, "queued": None}
+    return {"packets": [], "index": 0, "airing": 0, "started_at": 0.0, "queued": []}
 
 
-def _parse_queued(raw: Any) -> int | None:
+def _parse_queued(raw: Any) -> list[int]:
     if raw is None or raw is False:
-        return None
+        return []
+    if isinstance(raw, list):
+        out: list[int] = []
+        for item in raw:
+            try:
+                out.append(int(item))
+            except (TypeError, ValueError):
+                continue
+        return out
     try:
-        return int(raw)
+        return [int(raw)]
     except (TypeError, ValueError):
-        return None
+        return []
 
 
 def _load() -> dict[str, Any]:
@@ -147,8 +156,10 @@ def _load() -> dict[str, Any]:
             _state["index"] = 0
     else:
         _state = _empty_state()
-    if "queued" not in _state:
-        _state["queued"] = None
+    if "queued" not in _state or _state["queued"] is None:
+        _state["queued"] = []
+    else:
+        _state["queued"] = _parse_queued(_state.get("queued"))
     return _state
 
 
@@ -205,14 +216,20 @@ def _advance_if_due(state: dict[str, Any], now: float) -> None:
     limit = _duration(packets[idx]) + GRACE_SEC
     if now - started < limit:
         return
-    queued = state.get("queued")
+    queued = _parse_queued(state.get("queued"))
     n = len(packets)
-    if isinstance(queued, int) and 0 <= queued < n:
-        state["index"] = queued
-        state["queued"] = None
+    nxt = None
+    while queued:
+        cand = queued.pop(0)
+        if 0 <= cand < n:
+            nxt = cand
+            break
+    if nxt is not None:
+        state["index"] = nxt
+        state["queued"] = queued
     else:
         state["index"] = _random_index(packets, avoid=idx)
-        state["queued"] = None
+        state["queued"] = []
     state["airing"] = int(state["airing"] or 0) + 1
     state["started_at"] = now
     _save(state)
@@ -248,7 +265,10 @@ def pin(packet: dict[str, Any]) -> dict[str, Any]:
             new_idx = len(packets) - 1
         now = time.time()
         if _playing(state, now):
-            state["queued"] = new_idx
+            queued = _parse_queued(state.get("queued"))
+            if new_idx not in queued:
+                queued.append(new_idx)
+            state["queued"] = queued
             _save(state)
             try:
                 from orchestrator import archive
@@ -259,7 +279,7 @@ def pin(packet: dict[str, Any]) -> dict[str, Any]:
         state["index"] = new_idx
         state["airing"] = int(state["airing"] or 0) + 1
         state["started_at"] = now
-        state["queued"] = None
+        state["queued"] = []
         _save(state)
         try:
             from orchestrator import archive
@@ -366,12 +386,93 @@ def _recover_random_from_db(mem) -> dict[str, Any] | None:
     return packet
 
 
+def remaining_seconds(now: float | None = None) -> float:
+    """Seconds left on the currently airing episode, including grace."""
+    now = time.time() if now is None else now
+    with _lock:
+        state = _load()
+        _advance_if_due(state, now)
+        return _remaining_locked(state, now)
+
+
+def _remaining_locked(state: dict[str, Any], now: float) -> float:
+    packets = state["packets"]
+    if not packets:
+        return 0.0
+    started = float(state.get("started_at") or 0.0)
+    if started <= 0:
+        return 0.0
+    idx = int(state.get("index") or 0) % len(packets)
+    limit = _duration(packets[idx]) + GRACE_SEC
+    return max(0.0, limit - (now - started))
+
+
+def queued_wait_seconds(now: float | None = None) -> float:
+    """How long until a newly pinned episode would start (current remaining + queued)."""
+    now = time.time() if now is None else now
+    with _lock:
+        state = _load()
+        _advance_if_due(state, now)
+        wait = _remaining_locked(state, now)
+        packets = state["packets"]
+        if not packets:
+            return wait
+        for qidx in _parse_queued(state.get("queued")):
+            if 0 <= qidx < len(packets):
+                wait += _duration(packets[qidx]) + GRACE_SEC
+        return wait
+
+
+def seconds_until_episode(episode_id: int | None, now: float | None = None) -> float:
+    """Seconds until the given episode starts airing. 0 if it is on now."""
+    if episode_id is None:
+        return queued_wait_seconds(now)
+    now = time.time() if now is None else now
+    with _lock:
+        state = _load()
+        _advance_if_due(state, now)
+        packets = state["packets"]
+        if not packets:
+            return 0.0
+        n = len(packets)
+        cur = int(state.get("index") or 0) % n
+        queued = _parse_queued(state.get("queued"))
+        target = None
+        for i, pkt in enumerate(packets):
+            if pkt.get("episode_id") == episode_id or pkt.get("show_episode_id") == episode_id:
+                target = i
+                break
+        if target is None:
+            return queued_wait_seconds(now)
+        if cur == target and target not in queued:
+            return 0.0
+        wait = _remaining_locked(state, now)
+        for qidx in queued:
+            if qidx == target:
+                return wait
+            if 0 <= qidx < n:
+                wait += _duration(packets[qidx]) + GRACE_SEC
+        return wait
+
+
+def format_eta_copy(seconds: float) -> str:
+    if seconds <= 8:
+        return "on now"
+    minutes = max(1, int(math.ceil(seconds / 60.0)))
+    return f"Your episode airs in about {minutes}m"
+
+
 def snapshot() -> dict[str, Any]:
     with _lock:
         state = _load()
+        now = time.time()
+        _advance_if_due(state, now)
+        rem = _remaining_locked(state, now)
         return {
             "count": len(state["packets"]),
             "index": state["index"],
             "airing": state["airing"],
+            "queued": _parse_queued(state.get("queued")),
+            "remaining_seconds": rem,
             "topics": [p.get("topic") for p in state["packets"]],
         }
