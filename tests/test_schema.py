@@ -97,3 +97,12 @@ def test_invalid_target_becomes_none():
     }
     scene = validate_scene(payload)
     assert scene.beats[0].target is None
+
+
+def test_mock_writer_viewer_topic_not_toaster():
+    writer = MockWriter()
+    scene = writer.write_scene("", {}, {}, "What if the thermostat joins the union", source="viewer", username="Alex")
+    validated = validate_scene(scene)
+    assert "thermostat" in validated.topic.lower()
+    assert validated.topic.endswith("by Alex")
+    assert "toaster" not in validated.topic.lower()

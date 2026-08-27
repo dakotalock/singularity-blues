@@ -30,3 +30,13 @@ def test_clean_prompt_can_be_viewer():
 def test_autonomous_avoids_recent_repeat():
     choice = pick_autonomous({"recent_topics": ["Reed applies for toaster status"]})
     assert choice.topic != "Reed applies for toaster status"
+
+
+def test_accepted_prompt_is_never_autonomous():
+    choice = choose(
+        [{"id": 9, "text": "What if the thermostat joins the fridge union"}],
+        {"recent_topics": ["Reed applies for toaster status"]},
+    )
+    assert choice.source == "viewer"
+    assert "thermostat" in choice.topic.lower()
+    assert "toaster" not in choice.topic.lower()

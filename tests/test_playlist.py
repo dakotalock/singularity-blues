@@ -40,12 +40,12 @@ def test_advance_after_duration_changes_play_id(tmp_path, monkeypatch):
     second = pl.pin(_packet(tmp_path, 2, "b", duration=0.05, source="viewer"))
     assert second["show_episode_id"] == 1
     assert second["episode_id"] == first["episode_id"]
-    assert pl._state.get("queued") == 1
+    assert pl._state.get("queued") == [1]
     pl._state["started_at"] = time.time() - 30
     nxt = pl.current()
     assert nxt["show_episode_id"] == 2
     assert nxt["episode_id"] == first["episode_id"] + 1
-    assert pl._state.get("queued") is None
+    assert pl._state.get("queued") in ([], None)
 
 
 def test_pin_while_playing_does_not_interrupt(tmp_path, monkeypatch):
@@ -116,3 +116,18 @@ def test_boot_picks_random_non_seed(tmp_path, monkeypatch):
         picks.add(served["show_episode_id"])
     assert 1 not in picks
     assert picks <= {2, 3}
+
+
+def test_eta_returns_remaining_seconds(tmp_path, monkeypatch):
+    pl = _reset(monkeypatch, tmp_path)
+    pl.pin(_packet(tmp_path, 21, "eta-ep", duration=0.2, source="viewer"))
+    rem = pl.remaining_seconds()
+    assert rem > 0
+    snap = pl.snapshot()
+    assert snap["remaining_seconds"] > 0
+    assert snap["remaining_seconds"] == rem or abs(snap["remaining_seconds"] - rem) < 2
+    copy = pl.format_eta_copy(rem)
+    assert "airs in about" in copy or copy == "on now"
+    assert pl.format_eta_copy(0) == "on now"
+    assert pl.format_eta_copy(3) == "on now"
+    assert "1m" in pl.format_eta_copy(40)
