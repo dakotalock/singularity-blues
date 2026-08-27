@@ -146,7 +146,7 @@ def test_board_lists_queued_titles(tmp_path, monkeypatch):
     ]
 
 
-def test_ingest_voices_newest_three_then_airs(tmp_path, monkeypatch):
+def test_ingest_airs_first_then_voices_the_rest(tmp_path, monkeypatch):
     pl = _reset(monkeypatch, tmp_path)
     calls = []
 
@@ -160,8 +160,9 @@ def test_ingest_voices_newest_three_then_airs(tmp_path, monkeypatch):
         for i in range(1, 9)
     ]
     pl._ingest_archived(items)
-    assert calls == [8, 7, 6]
+    assert calls == [8, 7, 6, 5, 4, 3, 2, 1]
     topics = [p["topic"] for p in pl._state["packets"]]
     assert "ep 8" in topics
+    assert "ep 1" in topics
     served = pl.current()
     assert served.get("beats")

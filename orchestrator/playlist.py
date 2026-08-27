@@ -289,11 +289,8 @@ def pin(packet: dict[str, Any]) -> dict[str, Any]:
         return _publish(state)
 
 
-BOOT_VOICE_LIMIT = 3
-
-
-def _ingest_archived(items: list[dict[str, Any]], *, limit: int = BOOT_VOICE_LIMIT) -> None:
-    """Re-voice a few recent scripts so the stage can start. Do not wait on the whole archive."""
+def _ingest_archived(items: list[dict[str, Any]]) -> None:
+    """Re-voice archive scripts. Put the newest on air first, then fill the rerun pool."""
     if not items:
         return
     from orchestrator.tts import render as render_scene
@@ -301,18 +298,14 @@ def _ingest_archived(items: list[dict[str, Any]], *, limit: int = BOOT_VOICE_LIM
     with _lock:
         state = _load()
         have = {p.get("episode_id") for p in state["packets"]}
-    voiced = 0
     published = False
     for item in reversed(list(items)):
-        if voiced >= max(1, int(limit)):
-            break
         eid = item.get("id")
         scene = item.get("scene") or {}
-        if eid in have or not scene.get("beats"):
+        if eid is None or eid in have or not scene.get("beats"):
             continue
         packet = render_scene(scene, int(eid))
         packet["source"] = scene.get("source") or "viewer"
-        voiced += 1
         have.add(eid)
         if not published:
             pin(packet)
