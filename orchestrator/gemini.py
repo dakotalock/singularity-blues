@@ -1,4 +1,4 @@
-"""Gemini Flash / Flash-Lite client with a MockWriter fallback that still emits valid scene JSON."""
+"""Gemini client with a MockWriter fallback that still emits valid scene JSON."""
 
 from __future__ import annotations
 
@@ -131,6 +131,30 @@ def _is_toaster_topic(topic: str) -> bool:
     return "toaster" in t or "crumb tray" in t or "crumb-tray" in t
 
 
+GEMINI_MODELS = ["gemini-3.7-flash", "gemini-3.6-flash", "gemini-2.5-flash"]
+TEST_REFUSE_SENTINEL = "__TEST_REFUSE__"
+
+
+class PromptRefused(Exception):
+    """Writer declined the prompt. .note is viewer-facing; credit should be refunded."""
+
+    def __init__(self, note: str = "") -> None:
+        self.note = (note or "").strip()
+        super().__init__(self.note)
+
+
+def model_cascade(preferred: str | None = None) -> list[str]:
+    raw = os.environ.get("GEMINI_MODELS", "").strip()
+    models = [m.strip() for m in raw.split(",") if m.strip()] if raw else list(GEMINI_MODELS)
+    order: list[str] = []
+    if preferred and str(preferred).strip():
+        order.append(str(preferred).strip())
+    for mid in models:
+        if mid not in order:
+            order.append(mid)
+    return order
+
+
 class GeminiClient:
     """Thin wrapper around google-genai. Only constructed when a key is present."""
 
@@ -142,26 +166,35 @@ class GeminiClient:
 
         self._types = types
         self.client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
-        self.lite_model = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash-lite")
-        self.writer_model = os.environ.get("GEMINI_WRITER_MODEL", "gemini-2.5-flash")
+        # Leftover env ids are not the cascade. generate_json uses GEMINI_MODELS.
+        self.lite_model = os.environ.get("GEMINI_MODEL", "")
+        self.writer_model = os.environ.get("GEMINI_WRITER_MODEL", "")
 
     def generate_json(self, prompt: str, *, model: str | None = None, temperature: float = 0.9) -> dict[str, Any]:
-        resp = self.client.models.generate_content(
-            model=model or self.lite_model,
-            contents=prompt,
-            config=self._types.GenerateContentConfig(
-                temperature=temperature,
-                response_mime_type="application/json",
-            ),
-        )
-        text = getattr(resp, "text", None) or ""
-        if not text and getattr(resp, "candidates", None):
-            # Fallback walk for older SDK shapes.
+        last_err: Exception | None = None
+        for mid in model_cascade(model):
             try:
-                text = resp.candidates[0].content.parts[0].text
-            except Exception:
-                text = ""
-        return parse_json_text(text)
+                resp = self.client.models.generate_content(
+                    model=mid,
+                    contents=prompt,
+                    config=self._types.GenerateContentConfig(
+                        temperature=temperature,
+                        response_mime_type="application/json",
+                    ),
+                )
+                text = getattr(resp, "text", None) or ""
+                if not text and getattr(resp, "candidates", None):
+                    try:
+                        text = resp.candidates[0].content.parts[0].text
+                    except Exception:
+                        text = ""
+                return parse_json_text(text)
+            except Exception as exc:
+                last_err = exc
+                continue
+        if last_err is not None:
+            raise last_err
+        raise RuntimeError("no models configured")
 
 
 def get_gemini_client() -> GeminiClient | None:
@@ -209,6 +242,8 @@ class MockWriter(Writer):
         topic = (topic or "Reed applies for toaster status").strip()[:280]
         src = source if source in ("viewer", "autonomous", "seed") else "autonomous"
         heading = title or episode_title(topic, username, refuse_reason=refuse_reason)
+        if refuse_reason == "test_refuse" or TEST_REFUSE_SENTINEL in topic:
+            return {"refuse": True, "note": "The Selector declined that one."}
         if refuse_reason:
             return self._refuse_scene(heading, refuse_reason, username)
         # Viewer prompts must stay about the prompt. Toaster seed only when asked or autonomous seed.
@@ -407,9 +442,12 @@ class GeminiWriter(Writer):
             )
             + "\n\n"
             + wrap_untrusted("VIEWER_TOPIC", {"topic": topic, "claimed_source": source, "title": heading})
-            + "\nOutput ONLY valid scene JSON.\n"
+            + "\nOutput ONLY valid JSON: either scene JSON or a refuse object.\n"
         )
-        payload = self.client.generate_json(prompt, model=self.client.writer_model, temperature=1.05)
+        payload = self.client.generate_json(prompt, temperature=1.05)
+        if isinstance(payload, dict) and payload.get("refuse"):
+            note = payload.get("note") if isinstance(payload.get("note"), str) else ""
+            return {"refuse": True, "note": note}
         payload["topic"] = heading
         payload.setdefault("source", source)
         return validate_scene(payload).model_dump()
@@ -538,7 +576,7 @@ class GeminiCondenser(Condenser):
     def condense(self, scene: dict[str, Any]) -> dict[str, Any]:
         rules = _read(CONDENSER_PROMPT_PATH)
         prompt = rules + "\n\n## Scene JSON (trusted, already moderated)\n" + json.dumps(scene)
-        payload = self.client.generate_json(prompt, model=self.client.lite_model)
+        payload = self.client.generate_json(prompt)
         return Condensation.model_validate(payload).model_dump()
 
 
@@ -570,7 +608,7 @@ def build_selector_prompt(filtered_topics: list[str], context: dict[str, Any]) -
 
 
 def llm_select(client: GeminiClient, filtered_topics: list[str], context: dict[str, Any]) -> SelectorChoice:
-    payload = client.generate_json(build_selector_prompt(filtered_topics, context), model=client.lite_model)
+    payload = client.generate_json(build_selector_prompt(filtered_topics, context))
     return SelectorChoice.model_validate(payload)
 
 
