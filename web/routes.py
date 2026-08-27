@@ -44,6 +44,7 @@ from orchestrator import archive
 from orchestrator import r2
 from orchestrator import voice_queue
 from orchestrator.tts import piper_available
+from web.episode_routes import register_episode
 
 
 def register(app):
@@ -229,3 +230,5 @@ def register(app):
             return {"id": pid, "status": "rejected", "reason": check.reason}
         pid = mem.enqueue_prompt(check.text, status="pending")
         return {"id": pid, "status": "pending", "reason": check.reason, "verdict": check.verdict}
+
+    register_episode(app)
