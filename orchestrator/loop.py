@@ -15,6 +15,7 @@ from orchestrator.moderation import episode_title, prefilter, scrub_slurs
 from orchestrator.schemas import validate_scene
 from orchestrator.seed import seed
 from orchestrator.selector import choose
+from orchestrator.playlist import absorb as playlist_absorb
 from orchestrator.playlist import pin as playlist_pin
 from orchestrator.voice_queue import HIGH, voice_episode
 
@@ -40,6 +41,7 @@ def run_episode(
     refuse_reason: str | None = None,
     ltm_pin: bool = False,
     title: str | None = None,
+    air: bool = True,
 ) -> dict[str, Any]:
     """
     1 collect prompts  2 prefilter  3 selector.choose
@@ -123,9 +125,13 @@ def run_episode(
         mem.mark_prompts([pid], "rejected", reason)
 
     # Publishing is the final commit point. The player must not see an episode
-    # while its request still reports writing/voicing, and pin() owns whether it
-    # airs now or joins the queue behind the current rerun.
-    playlist_pin(packet)
+    # while its request still reports writing/voicing. pin() owns the public air
+    # queue; absorb() files a private showing into the library without hijacking
+    # the broadcast loop.
+    if air:
+        playlist_pin(packet)
+    else:
+        playlist_absorb(packet)
     if progress:
         progress({"phase": "ready", "beat": len(packet.get("beats") or []), "beats": len(packet.get("beats") or []), "speaker": ""})
 
