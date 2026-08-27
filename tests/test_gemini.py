@@ -1,4 +1,5 @@
 from types import SimpleNamespace
+import json
 import pytest
 
 from orchestrator.gemini import GeminiClient, GeminiWriter, GEMINI_MODELS, WriterCascadeError, model_cascade
@@ -140,3 +141,95 @@ def test_writer_raises_only_after_all_three_invalid(monkeypatch):
     with pytest.raises(WriterCascadeError, match="all 3 writer attempts failed"):
         GeminiWriter(Fake()).write_scene("", {}, {}, "a difficult prompt", source="viewer")
     assert calls == ["writer-one", "writer-two", "writer-three"]
+
+
+def test_writer_uses_second_model_after_invalid_json(monkeypatch):
+    monkeypatch.setenv("GEMINI_MODELS", "writer-one,writer-two")
+    calls = []
+
+    class Fake:
+        def generate_json_once(self, prompt, model, temperature=0.9):
+            calls.append(model)
+            if model == "writer-one":
+                raise json.JSONDecodeError("Expecting value", "not-json {", 0)
+            return _valid_scene()
+
+    out = GeminiWriter(Fake()).write_scene("", {}, {}, "thermostat union", source="viewer", username="Alex")
+    assert calls == ["writer-one", "writer-two"]
+    assert out["beats"][0]["speaker"] == "reed"
+    assert "thermostat union" in out["topic"]
+
+
+def test_writer_retries_timeout_http_empty_and_garbage_then_succeeds(monkeypatch):
+    monkeypatch.setenv("GEMINI_MODELS", "writer-one,writer-two,writer-three")
+    calls = []
+
+    class Fake:
+        def generate_json_once(self, prompt, model, temperature=0.9):
+            calls.append(model)
+            if model == "writer-one":
+                raise TimeoutError("deadline exceeded")
+            if model == "writer-two":
+                raise RuntimeError("empty writer response")
+            return _valid_scene()
+
+    out = GeminiWriter(Fake()).write_scene("", {}, {}, "a difficult prompt", source="viewer")
+    assert calls == ["writer-one", "writer-two", "writer-three"]
+    assert len(out["beats"]) >= 4
+
+
+def test_writer_two_fail_one_succeeds_does_not_raise(monkeypatch):
+    monkeypatch.setenv("GEMINI_MODELS", "writer-one,writer-two,writer-three")
+    calls = []
+
+    class Fake:
+        def generate_json_once(self, prompt, model, temperature=0.9):
+            calls.append(model)
+            if model == "writer-one":
+                raise RuntimeError("502 Bad Gateway")
+            if model == "writer-two":
+                return "truncated{"
+            return _valid_scene()
+
+    out = GeminiWriter(Fake()).write_scene("", {}, {}, "a difficult prompt", source="viewer")
+    assert calls == ["writer-one", "writer-two", "writer-three"]
+    assert out["scene"] == "living_room"
+
+
+def test_writer_all_three_invalid_json_raises_cascade(monkeypatch):
+    monkeypatch.setenv("GEMINI_MODELS", "writer-one,writer-two,writer-three")
+    calls = []
+
+    class Fake:
+        def generate_json_once(self, prompt, model, temperature=0.9):
+            calls.append(model)
+            raise json.JSONDecodeError("Expecting value", "{", 0)
+
+    with pytest.raises(WriterCascadeError, match="all 3 writer attempts failed"):
+        GeminiWriter(Fake()).write_scene("", {}, {}, "a difficult prompt", source="viewer")
+    assert calls == ["writer-one", "writer-two", "writer-three"]
+
+
+def test_writer_malformed_refuse_is_error_not_moderation(monkeypatch):
+    monkeypatch.setenv("GEMINI_MODELS", "writer-one,writer-two")
+    calls = []
+
+    class Fake:
+        def generate_json_once(self, prompt, model, temperature=0.9):
+            calls.append(model)
+            if model == "writer-one":
+                return {"refuse": True, "note": "JSONDecodeError: truncated output"}
+            return _valid_scene()
+
+    out = GeminiWriter(Fake()).write_scene("", {}, {}, "a difficult prompt", source="viewer")
+    assert calls == ["writer-one", "writer-two"]
+    assert "beats" in out
+
+
+def test_generate_json_once_empty_response_raises():
+    def generate_content(model, contents, config=None):
+        return SimpleNamespace(text="", candidates=None)
+
+    client = _client_with_generate(generate_content)
+    with pytest.raises(RuntimeError, match="empty writer response"):
+        GeminiClient.generate_json_once(client, "prompt", model="writer-one")
