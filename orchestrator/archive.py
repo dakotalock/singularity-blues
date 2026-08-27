@@ -1,4 +1,4 @@
-"""Durable episode library in Postgres. Dialogue survives deploys; wavs are re-voiced on boot."""
+"""Durable episode library in Postgres. Dialogue in episodes, wavs in R2, manifests in audio_manifests."""
 
 from __future__ import annotations
 
@@ -87,6 +87,15 @@ def init() -> bool:
                         characters JSONB NOT NULL DEFAULT '[]'::jsonb,
                         created_at TIMESTAMPTZ,
                         episode_id INTEGER
+                    )
+                    """
+                )
+                cur.execute(
+                    f"""
+                    CREATE TABLE IF NOT EXISTS {SCHEMA}.audio_manifests (
+                        episode_id INTEGER PRIMARY KEY,
+                        packet_json JSONB NOT NULL,
+                        voiced_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
                     )
                     """
                 )
@@ -252,5 +261,93 @@ def list_memories() -> list[dict[str, Any]]:
         return out
     except Exception:
         return []
+    finally:
+        conn.close()
+
+
+def _manifest_id(packet: dict[str, Any]) -> int | None:
+    raw = packet.get("show_episode_id", packet.get("episode_id"))
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        return None
+
+
+def upsert_manifest(packet: dict[str, Any]) -> None:
+    if not packet or not packet.get("beats"):
+        return
+    eid = _manifest_id(packet)
+    if eid is None:
+        return
+    conn = _connect()
+    if conn is None:
+        return
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    f"""
+                    INSERT INTO {SCHEMA}.audio_manifests (episode_id, packet_json)
+                    VALUES (%s, %s::jsonb)
+                    ON CONFLICT (episode_id) DO UPDATE SET
+                        packet_json = EXCLUDED.packet_json,
+                        voiced_at = NOW()
+                    """,
+                    (eid, json.dumps(packet)),
+                )
+    except Exception:
+        pass
+    finally:
+        conn.close()
+
+
+def list_voiced_packets() -> list[dict[str, Any]]:
+    conn = _connect()
+    if conn is None:
+        return []
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    f"SELECT packet_json FROM {SCHEMA}.audio_manifests ORDER BY episode_id ASC"
+                )
+                rows = cur.fetchall()
+        out = []
+        for (packet_json,) in rows:
+            if isinstance(packet_json, str):
+                try:
+                    packet = json.loads(packet_json)
+                except json.JSONDecodeError:
+                    continue
+            else:
+                packet = packet_json or {}
+            if not isinstance(packet, dict) or not packet.get("beats"):
+                continue
+            out.append(packet)
+        return out
+    except Exception:
+        return []
+    finally:
+        conn.close()
+
+
+def voiced_ids() -> set[int]:
+    conn = _connect()
+    if conn is None:
+        return set()
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(f"SELECT episode_id FROM {SCHEMA}.audio_manifests")
+                rows = cur.fetchall()
+        out: set[int] = set()
+        for row in rows:
+            try:
+                out.add(int(row[0]))
+            except (TypeError, ValueError):
+                continue
+        return out
+    except Exception:
+        return set()
     finally:
         conn.close()
