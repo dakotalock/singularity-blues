@@ -17,6 +17,8 @@ def test_player_exposes_clear_sound_and_fullscreen_controls():
     assert "Exit full screen" in html
     assert "player-expanded" in html
     assert "body.broadcast #player-controls" in html
+    assert "document.body.classList.contains('broadcast')" in html
+    assert "setInterval(() => setAudioEnabled(true), 2000)" in html
 
 
 def test_renderer_defines_every_writer_set():
