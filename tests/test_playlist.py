@@ -5,10 +5,19 @@ from pathlib import Path
 from orchestrator.gemini import TOASTER_APPLICATION_SCENE
 
 
-def _packet(tmp: Path, eid: int, topic: str, duration: float = 0.2, source: str = "seed") -> dict:
+def _packet(
+    tmp: Path, eid: int, topic: str, duration: float = 0.2, source: str = "seed", hashed: bool = False
+) -> dict:
+    from orchestrator.tts import _wav_name
+
     beats = []
     for i, beat in enumerate(TOASTER_APPLICATION_SCENE["beats"][:4]):
-        wav = tmp / f"ep{eid:04d}_{i:02d}_{beat['speaker']}.wav"
+        speaker = beat["speaker"]
+        line = beat.get("line") or ""
+        if hashed:
+            wav = tmp / _wav_name(eid, i, speaker, line)
+        else:
+            wav = tmp / f"ep{eid:04d}_{i:02d}_{speaker}.wav"
         wav.write_bytes(b"RIFF....WAVEfmt ")
         beats.append({**beat, "audio": str(wav), "duration_sec": duration})
     return {"episode_id": eid, "scene": "living_room", "topic": topic, "source": source, "beats": beats}
@@ -250,8 +259,8 @@ def test_manifests_restore_without_piper(tmp_path, monkeypatch):
         return _packet(tmp_path, int(eid), scene.get("topic") or f"ep {eid}", source="viewer")
 
     voiced = [
-        _packet(tmp_path, 8, "ep 8", source="viewer"),
-        _packet(tmp_path, 3, "ep 3", source="viewer"),
+        _packet(tmp_path, 8, "ep 8", source="viewer", hashed=True),
+        _packet(tmp_path, 3, "ep 3", source="viewer", hashed=True),
     ]
     monkeypatch.setattr("orchestrator.tts.render", fake_render)
     monkeypatch.setattr("orchestrator.archive.init", lambda: True)
@@ -273,3 +282,53 @@ def test_manifests_restore_without_piper(tmp_path, monkeypatch):
     assert "ep 8" in topics
     assert "ep 3" in topics
     assert served.get("beats")
+
+def test_stale_unhashed_manifests_are_revoiced(tmp_path, monkeypatch):
+    pl = _reset(monkeypatch, tmp_path)
+    calls = []
+
+    def fake_render(scene, eid, progress=None, out_dir=None):
+        calls.append(int(eid))
+        return _packet(tmp_path, int(eid), scene.get("topic") or f"ep {eid}", source="viewer")
+
+    voiced = [
+        _packet(tmp_path, 8, "ep 8", source="viewer", hashed=False),
+        _packet(tmp_path, 3, "ep 3", source="viewer", hashed=False),
+    ]
+    monkeypatch.setattr("orchestrator.tts.render", fake_render)
+    monkeypatch.setattr("orchestrator.archive.init", lambda: True)
+    monkeypatch.setattr("orchestrator.archive.list_voiced_packets", lambda: voiced)
+    monkeypatch.setattr("orchestrator.archive.voiced_ids", lambda: {8, 3})
+    monkeypatch.setattr("orchestrator.archive.upsert_episode", lambda p: None)
+    monkeypatch.setattr("orchestrator.archive.upsert_manifest", lambda p: None)
+    scenes = [
+        {"id": i, "scene": {"topic": f"ep {i}", "source": "viewer", "beats": [{"speaker": "reed", "line": "hi"}]}}
+        for i in range(1, 9)
+    ]
+    monkeypatch.setattr("orchestrator.archive.list_scenes", lambda: scenes)
+    served = pl.ensure_voiced_boot(_FakeMem())
+    _drain_voice_queue()
+    assert 8 in calls
+    assert 3 in calls
+    assert set(calls) == {1, 2, 3, 4, 5, 6, 7, 8}
+    topics = [p["topic"] for p in pl._state["packets"]]
+    assert "ep 8" in topics
+    assert "ep 3" in topics
+    assert served.get("beats")
+
+
+def test_packet_needs_revoice_unhashed_empty_and_hashed(tmp_path, monkeypatch):
+    pl = _reset(monkeypatch, tmp_path)
+    unhashed = _packet(tmp_path, 7, "stale", hashed=False)
+    assert pl.packet_needs_revoice(unhashed) is True
+    hashed = _packet(tmp_path, 7, "fresh", hashed=True)
+    assert pl.packet_needs_revoice(hashed) is False
+    empty_audio = {
+        "episode_id": 1,
+        "beats": [{"speaker": "reed", "line": "a", "audio": "", "duration_sec": 1.0}],
+    }
+    assert pl.packet_needs_revoice(empty_audio) is True
+    no_beats = {"episode_id": 1, "beats": []}
+    assert pl.packet_needs_revoice(no_beats) is True
+    missing_beats = {"episode_id": 1}
+    assert pl.packet_needs_revoice(missing_beats) is True

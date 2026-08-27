@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import math
 import random
+import re
 import threading
 import time
 import wave
@@ -37,6 +38,21 @@ def _packet_wav_ok(packet: dict[str, Any]) -> bool:
         if not audio:
             return False
     return True
+
+
+_HASHED_WAV = re.compile(r"^ep\d{4}_\d{2}_[a-z0-9]+_[0-9a-f]{8}\.wav$")
+
+
+def packet_needs_revoice(packet: dict[str, Any]) -> bool:
+    """True if any beat still uses pre-hash wav names or is missing audio."""
+    beats = packet.get("beats") or []
+    if not beats:
+        return True
+    for beat in beats:
+        name = Path(str(beat.get("audio") or "")).name.lower()
+        if not name or not _HASHED_WAV.match(name):
+            return True
+    return False
 
 
 def _wav_seconds(path: Path | str) -> float | None:
@@ -278,10 +294,10 @@ def pin(packet: dict[str, Any]) -> dict[str, Any]:
             state["queued"] = queued
             _save(state)
             try:
-                from orchestrator import archive
-                archive.upsert_episode(stored)
+                    from orchestrator import archive
+                    archive.upsert_episode(stored)
             except Exception:
-                pass
+                    pass
             return _serve_packet(state)
         state["index"] = new_idx
         state["airing"] = int(state["airing"] or 0) + 1
@@ -376,15 +392,29 @@ def ensure_voiced_boot(mem) -> dict[str, Any]:
                 state["started_at"] = time.time()
                 _save(state)
                 published = _publish(state)
+        fresh: set[int] = set()
+        for pkt in voiced:
+            raw = pkt.get("show_episode_id", pkt.get("episode_id"))
+            try:
+                eid = int(raw)
+            except (TypeError, ValueError):
+                continue
+            if not packet_needs_revoice(pkt):
+                fresh.add(eid)
         try:
             scenes = archive.list_scenes() or []
-            have = archive.voiced_ids() or set()
         except Exception:
-            scenes, have = [], set()
+            scenes = []
         for item in reversed(list(scenes)):
             eid = item.get("id")
             scene = item.get("scene") or {}
-            if eid is None or eid in have or not scene.get("beats"):
+            if eid is None or not scene.get("beats"):
+                continue
+            try:
+                eid = int(eid)
+            except (TypeError, ValueError):
+                continue
+            if eid in fresh:
                 continue
             _enqueue_backfill(item)
         return published if published.get("beats") else current()
