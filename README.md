@@ -64,7 +64,9 @@ Hosted Stripe Checkout Sessions (`POST /checkout`, webhook `POST /stripe/webhook
 
 `POST /episode` spends 1 credit. Hard-rejects (injection, scream-spam, garbage, CSAM-adjacent, too short) refund **the credit**, never Stripe money. Writer errors and refusals first try all three configured writers; only an exhausted cascade refunds the credit and pin. Buyer identity is a signed cookie.
 
-The performance schema includes five sets, nineteen facial emotions, and twenty-three body animations. The writer is expected to choose purposeful reactions and movement rather than leaving every beat on the generic talking pose.
+The performance schema includes five sets, twenty-five facial emotions, and twenty-nine body animations. The upbeat range includes excited, playful, proud, hopeful, delighted, affectionate, laughing, giggling, applause, happy dances, high fives, and victory poses. The writer is expected to choose purposeful reactions and movement rather than leaving every beat on the generic talking pose.
+
+The renderer has a central interruption barrier: once a scene begins, incoming episode packets are deduplicated and held until its final beat and `scene_finished`. Playlist updates cannot replace a performance mid-episode.
 
 ## Phone test (one button)
 

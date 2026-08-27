@@ -79,9 +79,9 @@ func _pick(beat: Dictionary, index: int, beats: Array) -> String:
 		return "two_shot" if has_target else "wide"
 	if emotion in ["shocked", "screaming", "angry"] or anim in ["shocked", "screaming", "recoil", "double_take"]:
 		return "dramatic_closeup"
-	if has_target and (anim in ["pointing", "arms_crossed", "shrug", "hands_on_hips", "lean_in", "facepalm"] or emotion in ["annoyed", "serious", "scheming", "smug", "suspicious", "determined"]):
+	if has_target and (anim in ["pointing", "arms_crossed", "shrug", "hands_on_hips", "lean_in", "facepalm", "high_five"] or emotion in ["annoyed", "serious", "scheming", "smug", "suspicious", "determined", "playful", "affectionate"]):
 		return "two_shot"
-	if anim in ["celebrate", "wave"]:
+	if anim in ["celebrate", "wave", "applaud", "happy_dance", "victory_pose"]:
 		return "wide"
 	if index == 0:
 		return "medium"

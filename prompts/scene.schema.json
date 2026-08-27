@@ -17,8 +17,8 @@
         "properties": {
           "speaker": {"type": "string", "enum": ["reed", "maris", "jinx", "quill"]},
           "line": {"type": "string", "minLength": 1, "maxLength": 280},
-          "emotion": {"type": "string", "enum": ["serious", "annoyed", "scheming", "earnest", "shocked", "laughing", "screaming", "tired", "smug", "calm", "joyful", "sad", "angry", "nervous", "confused", "embarrassed", "determined", "suspicious", "relieved"]},
-          "animation": {"type": "string", "enum": ["idle", "talking", "gesture_small", "arms_crossed", "shrug", "pointing", "sitting", "walking", "shocked", "crying", "screaming", "enter", "leave", "wave", "nod", "shake_head", "facepalm", "hands_on_hips", "lean_in", "celebrate", "recoil", "double_take", "thinking"]},
+          "emotion": {"type": "string", "enum": ["serious", "annoyed", "scheming", "earnest", "shocked", "laughing", "screaming", "tired", "smug", "calm", "joyful", "sad", "angry", "nervous", "confused", "embarrassed", "determined", "suspicious", "relieved", "excited", "playful", "proud", "hopeful", "delighted", "affectionate"]},
+          "animation": {"type": "string", "enum": ["idle", "talking", "gesture_small", "arms_crossed", "shrug", "pointing", "sitting", "walking", "shocked", "crying", "screaming", "enter", "leave", "wave", "nod", "shake_head", "facepalm", "hands_on_hips", "lean_in", "celebrate", "recoil", "double_take", "thinking", "laughing", "giggle", "applaud", "happy_dance", "high_five", "victory_pose"]},
           "target": {"type": ["string", "null"], "enum": ["reed", "maris", "jinx", "quill", null]},
           "camera": {"type": "string", "enum": ["auto", "medium", "two_shot", "reaction", "wide", "dramatic_closeup"]}
         }

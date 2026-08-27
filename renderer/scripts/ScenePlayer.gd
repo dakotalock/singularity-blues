@@ -25,6 +25,8 @@ var _scene_name := "living_room"
 var _last_episode_id := ""
 var _web_polling := false
 var _run_token := 0
+var _pending_scenes: Array[Dictionary] = []
+var _pending_seed_flags: Array[bool] = []
 
 
 func setup(main: Node, cast: Dictionary, cam: Node, voice: AudioStreamPlayer, staging: Node = null) -> void:
@@ -170,6 +172,13 @@ func play_file(path: String) -> void:
 
 
 func play_dict(data: Dictionary, is_seed: bool) -> void:
+	# Central interruption barrier: callers may discover a new playlist packet at
+	# any time, but an active performance owns the stage through its final beat.
+	# Queue the packet here instead of relying on every polling/caller path to
+	# remember the same guard.
+	if _playing:
+		_queue_pending_scene(data, is_seed)
+		return
 	_beats = data.get("beats", [])
 	if _beats.is_empty():
 		scene_finished.emit()
@@ -190,6 +199,38 @@ func play_dict(data: Dictionary, is_seed: bool) -> void:
 	_index = 0
 	_reset_cast()
 	_run_beats(token)
+
+
+func _queue_pending_scene(data: Dictionary, is_seed: bool) -> void:
+	var beats: Array = data.get("beats", [])
+	if beats.is_empty():
+		return
+	var incoming_id := str(data.get("episode_id", ""))
+	if incoming_id != "" and incoming_id == _last_episode_id:
+		return
+	var incoming_key := _packet_key(data)
+	for pending in _pending_scenes:
+		if _packet_key(pending) == incoming_key:
+			return
+	_pending_scenes.append(data.duplicate(true))
+	_pending_seed_flags.append(is_seed)
+
+
+func _packet_key(data: Dictionary) -> String:
+	var eid := str(data.get("episode_id", ""))
+	if eid != "":
+		return "episode:" + eid
+	return "topic:" + str(data.get("topic", "")) + ":" + str((data.get("beats", []) as Array).size())
+
+
+func _play_next_pending() -> void:
+	if _playing or _pending_scenes.is_empty():
+		return
+	var data: Dictionary = _pending_scenes.pop_front()
+	var is_seed := false
+	if not _pending_seed_flags.is_empty():
+		is_seed = _pending_seed_flags.pop_front()
+	play_dict(data, is_seed)
 
 
 func _reset_cast() -> void:
@@ -228,6 +269,9 @@ func _run_beats(token: int) -> void:
 	if _cam:
 		_cam.idle_master()
 	scene_finished.emit()
+	if not _pending_scenes.is_empty():
+		call_deferred("_play_next_pending")
+		return
 	if _is_web():
 		_web_poll()
 	if _should_quit():
@@ -335,6 +379,8 @@ func _wants_reaction(beat: Dictionary, index: int) -> bool:
 		return true
 	if emotion in ["shocked", "screaming", "confused", "embarrassed"] or anim in ["shocked", "screaming", "recoil", "double_take", "facepalm"]:
 		return true
+	if anim in ["laughing", "giggle", "high_five"] or emotion in ["delighted", "playful"]:
+		return index % 2 == 1
 	var line := str(beat.get("line", ""))
 	return beat.get("target", null) != null and line.length() < 96 and emotion in ["smug", "scheming", "tired", "suspicious", "nervous"] and index % 3 == 1
 
@@ -347,7 +393,7 @@ func _hold_after(beat: Dictionary, index: int) -> float:
 		return 0.68
 	if anim in ["facepalm", "shake_head", "thinking"]:
 		return 0.48
-	if anim == "celebrate":
+	if anim in ["celebrate", "laughing", "happy_dance", "high_five", "victory_pose"]:
 		return 0.58
 	if str(beat.get("camera", "auto")) == "reaction":
 		return 0.55

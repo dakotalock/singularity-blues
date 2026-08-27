@@ -27,6 +27,12 @@ Emotion = Literal[
     "determined",
     "suspicious",
     "relieved",
+    "excited",
+    "playful",
+    "proud",
+    "hopeful",
+    "delighted",
+    "affectionate",
 ]
 Animation = Literal[
     "idle",
@@ -52,6 +58,12 @@ Animation = Literal[
     "recoil",
     "double_take",
     "thinking",
+    "laughing",
+    "giggle",
+    "applaud",
+    "happy_dance",
+    "high_five",
+    "victory_pose",
 ]
 Camera = Literal["auto", "medium", "two_shot", "reaction", "wide", "dramatic_closeup"]
 SceneName = Literal["living_room", "kitchen", "front_yard", "porch", "hallway"]
@@ -84,9 +96,13 @@ _EMOTION_SYNONYMS = {
     "wary": "suspicious",
     "doubtful": "suspicious",
     "reassured": "relieved",
+    "cheerful": "joyful",
+    "ecstatic": "delighted",
+    "optimistic": "hopeful",
+    "loving": "affectionate",
+    "fond": "affectionate",
     "plotting": "scheming",
     "evil": "scheming",
-    "proud": "smug",
     "yelling": "screaming",
     "shouting": "screaming",
 }
@@ -111,6 +127,13 @@ _ANIMATION_SYNONYMS = {
     "flinch": "recoil",
     "take_aback": "double_take",
     "ponder": "thinking",
+    "laugh": "laughing",
+    "chuckle": "giggle",
+    "clap": "applaud",
+    "clapping": "applaud",
+    "dance": "happy_dance",
+    "highfive": "high_five",
+    "victory": "victory_pose",
 }
 
 

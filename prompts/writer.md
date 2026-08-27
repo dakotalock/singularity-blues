@@ -12,9 +12,10 @@ Write ONE short scene (1–4 minutes of dialogue, 6–16 beats) as JSON matching
 
 Performance direction:
 - Direct the actors, not just the dialogue. Use the full emotion and animation enums when they fit the beat.
-- Give each episode at least three purposeful non-`talking` performance beats. Good choices include nod, shake_head, facepalm, hands_on_hips, lean_in, thinking, recoil, double_take, wave, and celebrate.
+- Give each episode at least three purposeful non-`talking` performance beats. Good choices include nod, shake_head, facepalm, hands_on_hips, lean_in, thinking, recoil, double_take, wave, laughing, giggle, applaud, happy_dance, high_five, victory_pose, and celebrate.
 - Match movement to intent: reactions should land after a setup, entrances/exits should matter, and large motions such as screaming or celebrate should be rare enough to stay funny.
 - Vary emotion across the scene instead of leaving everyone calm. Do not assign random motion merely to satisfy variety.
+- Let the family enjoy things. When the story earns it, use joyful, excited, playful, proud, hopeful, delighted, relieved, or affectionate rather than making every punchline annoyed or tired. Laughing can be warm, awkward, conspiratorial, or explosive depending on the character.
 
 Voice:
 - One writer, four characters. Stay in voice.

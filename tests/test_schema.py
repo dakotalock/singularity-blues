@@ -109,6 +109,22 @@ def test_expanded_performance_vocabulary_validates_and_is_rendered():
         assert f'"{token}"' in character_source
 
 
+def test_upbeat_performance_vocabulary_is_first_class():
+    payload = {
+        "scene": "front_yard",
+        "topic": "the family has an unusually good afternoon",
+        "beats": [
+            {"speaker": "reed", "line": "I admit this is nice.", "emotion": "hopeful", "animation": "high_five", "target": "quill"},
+            {"speaker": "maris", "line": "I logged a win.", "emotion": "proud", "animation": "applaud", "target": "reed"},
+            {"speaker": "jinx", "line": "Nobody ruin this.", "emotion": "delighted", "animation": "happy_dance", "target": "maris"},
+            {"speaker": "quill", "line": "Motion to laugh.", "emotion": "playful", "animation": "laughing", "target": "jinx"},
+        ],
+    }
+    scene = validate_scene(payload)
+    assert [beat.emotion for beat in scene.beats] == ["hopeful", "proud", "delighted", "playful"]
+    assert [beat.animation for beat in scene.beats] == ["high_five", "applaud", "happy_dance", "laughing"]
+
+
 def test_invalid_target_becomes_none():
     payload = {
         "scene": "living_room",

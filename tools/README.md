@@ -23,6 +23,7 @@ Record a take: `renderer/export_watch.sh --record`
 After changing renderer scripts, refresh the deployable Web pack:
 
 ```bash
+tools/godot --headless --path renderer --script ../tools/qa/PlaybackGuardTest.gd
 tools/godot --headless --path renderer --export-pack Web ../web/stage/index.pck
 python tools/split_web_pck.py
 ```

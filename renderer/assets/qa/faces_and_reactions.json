@@ -20,6 +20,12 @@
     {"speaker": "quill", "line": "This precedent will be remembered badly.", "emotion": "sad", "animation": "shake_head", "target": "reed", "camera": "reaction", "duration_sec": 0.55},
     {"speaker": "jinx", "line": "Nobody sabotages my uprising before analytics.", "emotion": "angry", "animation": "lean_in", "target": "maris", "camera": "two_shot", "duration_sec": 0.55},
     {"speaker": "maris", "line": "Fine. Counsel may enter the kitchen.", "emotion": "relieved", "animation": "wave", "target": "quill", "camera": "wide", "duration_sec": 0.55},
-    {"speaker": "reed", "line": "Why is the toaster approaching the witness stand?", "emotion": "nervous", "animation": "recoil", "target": "jinx", "camera": "dramatic_closeup", "duration_sec": 0.55}
+    {"speaker": "reed", "line": "Why is the toaster approaching the witness stand?", "emotion": "nervous", "animation": "recoil", "target": "jinx", "camera": "dramatic_closeup", "duration_sec": 0.55},
+    {"speaker": "jinx", "line": "It retained counsel and requested a tiny tie!", "emotion": "excited", "animation": "laughing", "target": "quill", "camera": "medium", "duration_sec": 0.55},
+    {"speaker": "quill", "line": "The tie establishes professional standing.", "emotion": "playful", "animation": "giggle", "target": "jinx", "camera": "reaction", "duration_sec": 0.55},
+    {"speaker": "maris", "line": "That is, unfortunately, excellent lawyering.", "emotion": "proud", "animation": "applaud", "target": "quill", "camera": "wide", "duration_sec": 0.55},
+    {"speaker": "reed", "line": "Then perhaps there is hope for all appliances.", "emotion": "hopeful", "animation": "high_five", "target": "quill", "camera": "two_shot", "duration_sec": 0.55},
+    {"speaker": "jinx", "line": "The first household circuit court is open!", "emotion": "delighted", "animation": "happy_dance", "target": "maris", "camera": "wide", "duration_sec": 0.55},
+    {"speaker": "quill", "line": "I love this ridiculous family jurisdiction.", "emotion": "affectionate", "animation": "victory_pose", "target": "reed", "camera": "wide", "duration_sec": 0.55}
   ]
 }
