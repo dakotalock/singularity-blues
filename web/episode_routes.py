@@ -2,6 +2,7 @@
 
 import hmac
 import json
+import logging
 import time
 import uuid
 from pathlib import Path
@@ -25,6 +26,9 @@ from orchestrator.playlist import current as playlist_current
 from orchestrator.playlist import snapshot as playlist_snapshot
 from orchestrator import r2
 from orchestrator.writer_cascade import DEFAULT_VETO_NOTE
+
+
+logger = logging.getLogger(__name__)
 
 
 def register_episode(app):
@@ -192,6 +196,7 @@ def register_episode(app):
                     job["credits"] = balance(buyer_id)["credits"]
                     job["finished_at"] = time.time()
             except Exception as exc:
+                logger.exception("episode job %s failed", job_id)
                 if spent:
                     refund_credit(buyer_id, 1)
                 if pin_spent:

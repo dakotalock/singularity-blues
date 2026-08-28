@@ -26,8 +26,26 @@
 		var endpoint = window.location.origin + '/now-playing';
 		return url === endpoint || url.indexOf(endpoint + '?') === 0;
 	}
+	function isStatusPoll(url) {
+		var path = '/episode/status';
+		var endpoint = window.location.origin + path;
+		return url === path || url.indexOf(path + '?') === 0 || url === endpoint || url.indexOf(endpoint + '?') === 0;
+	}
+	function absoluteSameOrigin(url) {
+		return url.charAt(0) === '/' ? window.location.origin + url : url;
+	}
 	function publicFetch(input, init) {
-		return nativeFetch(input, init);
+		// WebKit can reject an otherwise valid Request when an unnecessary empty
+		// init object is supplied. Preserve the browser's one-argument fetch path.
+		return init && Object.keys(init).length ? nativeFetch(input, init) : nativeFetch(input);
+	}
+	function statusFetch(input, init, retries) {
+		var url = typeof input === 'string' ? absoluteSameOrigin(input) : input;
+		return publicFetch(url, init).catch(function (err) {
+			if (retries <= 0) throw err;
+			return new Promise(function (resolve) { window.setTimeout(resolve, 300); })
+				.then(function () { return statusFetch(url, init, retries - 1); });
+		});
 	}
 	window.fetch = function (input, init) {
 		var url = typeof input === 'string' ? input : ((input && input.url) || '');
@@ -64,6 +82,10 @@
 				}).catch(function () { return publicFetch(input, options); });
 			}
 		} catch (e) {}
+		// The page polls this while voices render. A transient WebKit
+		// pattern-mismatch DOMException must not turn a healthy server job into a
+		// visible failure; normalize the URL and retry before surfacing it.
+		if (isStatusPoll(url)) return statusFetch(input, options, 3);
 		return publicFetch(input, options);
 	};
 })();

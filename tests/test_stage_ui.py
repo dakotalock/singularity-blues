@@ -102,3 +102,7 @@ def test_private_showing_copy_and_control():
     assert "privateJobs" in js
     assert "new Response(" not in js
     assert "privateOverride" not in js
+    assert "isStatusPoll" in js
+    assert "statusFetch(input, options, 3)" in js
+    assert "Object.keys(init).length" in js
+    assert "absoluteSameOrigin" in js

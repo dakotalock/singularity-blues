@@ -182,7 +182,9 @@ def _public_job_error(exc: BaseException) -> str:
     if isinstance(exc, WriterCascadeError):
         return "The writer could not finish that episode."
     raw = f"{type(exc).__name__}: {exc}"
-    if re.search(r"gemini-\d|gemini-3|piper", raw, re.I):
+    if re.search(r"piper|voice|speech|tts|\.wav", raw, re.I):
+        return "The voices could not finish that episode."
+    if re.search(r"gemini-\d|gemini-3|gemma-\d", raw, re.I):
         return "The writer could not finish that episode."
     return raw[:240]
 

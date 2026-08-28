@@ -40,15 +40,33 @@ class GeminiClient:
         self.lite_model = os.environ.get("GEMINI_MODEL", "")
         self.writer_model = os.environ.get("GEMINI_WRITER_MODEL", "")
 
+    @staticmethod
+    def _is_gemma(model: str) -> bool:
+        return str(model).strip().lower().startswith("gemma-")
+
+    def _json_config(
+        self,
+        *,
+        model: str,
+        temperature: float,
+        response_json_schema: dict[str, Any] | None = None,
+    ) -> Any:
+        """Use constrained JSON for Gemini and prompt-only JSON for Gemma."""
+        kwargs: dict[str, Any] = {
+            "temperature": min(1.0, max(0.0, temperature)),
+        }
+        if not self._is_gemma(model):
+            kwargs["response_mime_type"] = "application/json"
+            if response_json_schema is not None:
+                kwargs["response_json_schema"] = response_json_schema
+        return self._types.GenerateContentConfig(**kwargs)
+
     def generate_json_once(self, prompt: str, *, model: str, temperature: float = 0.9) -> dict[str, Any]:
         """Call exactly one model. Writer-level validation decides whether to continue."""
         resp = self.client.models.generate_content(
             model=model,
             contents=prompt,
-            config=self._types.GenerateContentConfig(
-                temperature=temperature,
-                response_mime_type="application/json",
-            ),
+            config=self._json_config(model=model, temperature=temperature),
         )
         text = getattr(resp, "text", None) or ""
         if not text and getattr(resp, "candidates", None):
@@ -77,9 +95,9 @@ class GeminiClient:
         resp = self.client.models.generate_content(
             model=model,
             contents=prompt,
-            config=self._types.GenerateContentConfig(
-                temperature=min(1.0, max(0.0, temperature)),
-                response_mime_type="application/json",
+            config=self._json_config(
+                model=model,
+                temperature=temperature,
                 response_json_schema=writer_response_schema(),
             ),
         )

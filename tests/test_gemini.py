@@ -2,7 +2,14 @@ from types import SimpleNamespace
 import json
 import pytest
 
-from orchestrator.gemini import GeminiClient, GeminiWriter, GEMINI_MODELS, WriterCascadeError, model_cascade
+from orchestrator.gemini import (
+    GEMINI_MODELS,
+    GeminiClient,
+    GeminiWriter,
+    WriterCascadeError,
+    model_cascade,
+    parse_json_text,
+)
 from orchestrator.writer_cascade import DEFAULT_VETO_NOTE, install as _install_writer_cascade
 
 _install_writer_cascade()
@@ -25,6 +32,25 @@ def test_model_cascade_default_ignores_legacy_env(monkeypatch):
     assert model_cascade()[0] == "gemini-3.7-flash"
 
 
+def test_default_writer_cascade_is_newest_flash_then_gemma(monkeypatch):
+    monkeypatch.delenv("GEMINI_MODELS", raising=False)
+    monkeypatch.delenv("GEMMA_MODELS", raising=False)
+    from orchestrator.gemini import writer_model_cascade
+
+    assert writer_model_cascade() == [
+        "gemini-3.7-flash",
+        "gemini-3.6-flash",
+        "gemini-3.5-flash",
+        "gemini-3.5-flash-lite",
+        "gemini-3.1-flash-lite",
+        "gemini-3-flash-preview",
+        "gemini-2.5-flash",
+        "gemini-2.5-flash-lite",
+        "gemma-4-31b-it",
+        "gemma-4-26b-a4b-it",
+    ]
+
+
 def test_model_cascade_env_and_preferred(monkeypatch):
     monkeypatch.setenv("GEMINI_MODELS", "gemini-3.7-flash, gemini-2.5-flash")
     assert model_cascade("gemini-2.5-flash") == ["gemini-2.5-flash", "gemini-3.7-flash"]
@@ -44,6 +70,10 @@ def test_generate_json_tries_next_model_on_429(monkeypatch):
     result = GeminiClient.generate_json(client, "prompt")
     assert result == {"ok": True}
     assert calls == ["gemini-3.7-flash", "gemini-3.6-flash"]
+
+
+def test_parse_json_text_recovers_object_surrounded_by_model_commentary():
+    assert parse_json_text('Thinking first.\n{"scene": "kitchen"}\nThat is all.') == {"scene": "kitchen"}
 
 
 def test_generate_json_preferred_then_cascade_on_429(monkeypatch):
@@ -288,6 +318,22 @@ def test_writer_call_uses_scene_or_veto_schema_and_supported_temperature():
     assert choices[1]["required"] == ["refuse", "note"]
     assert "minLength" not in json.dumps(schema)
     assert "maxLength" not in json.dumps(schema)
+
+
+def test_gemma_writer_call_uses_prompt_json_without_unsupported_json_config():
+    captured = {}
+
+    def generate_content(model, contents, config=None):
+        captured["model"] = model
+        captured["config"] = config
+        return SimpleNamespace(text='Draft:\n{"refuse": true, "note": "Not this topic."}', candidates=None)
+
+    client = _client_with_generate(generate_content)
+    out = GeminiClient.generate_writer_json_once(client, "prompt", model="gemma-4-31b-it")
+    assert out["refuse"] is True
+    assert captured["model"] == "gemma-4-31b-it"
+    assert "response_mime_type" not in captured["config"]
+    assert "response_json_schema" not in captured["config"]
 
 
 def test_writer_prefers_schema_constrained_method(monkeypatch):

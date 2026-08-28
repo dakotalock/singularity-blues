@@ -118,7 +118,24 @@ def parse_json_text(text: str) -> dict[str, Any]:
     if blob.startswith("```"):
         blob = re.sub(r"^```(?:json)?\s*", "", blob)
         blob = re.sub(r"\s*```$", "", blob)
-    return json.loads(blob)
+    try:
+        payload = json.loads(blob)
+    except json.JSONDecodeError as original:
+        # Hosted Gemma does not expose Gemini's response schema and can put a
+        # short explanation around an otherwise valid object. Recover the first
+        # complete JSON object instead of discarding a usable episode.
+        decoder = json.JSONDecoder()
+        for match in re.finditer(r"[\{\[]", blob):
+            try:
+                payload, _end = decoder.raw_decode(blob[match.start() :])
+            except json.JSONDecodeError:
+                continue
+            if isinstance(payload, dict):
+                return payload
+        raise original
+    if not isinstance(payload, dict):
+        raise TypeError("response was not a JSON object")
+    return payload
 
 
 def has_gemini_key() -> bool:
