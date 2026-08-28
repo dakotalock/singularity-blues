@@ -6,8 +6,8 @@ import json
 from typing import Any
 
 from orchestrator import BIBLE_PATH, CONDENSER_PROMPT_PATH, SELECTOR_PROMPT_PATH
-from orchestrator.gemini import _read, get_gemini_client
-from orchestrator.gemini_runtime import GeminiClient
+from orchestrator.gemini import _read
+from orchestrator.gemini_runtime import GeminiClient, get_gemini_client
 from orchestrator.moderation import scrub_slurs, wrap_untrusted
 from orchestrator.schemas import Condensation, SelectorChoice, validate_scene
 
