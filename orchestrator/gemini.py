@@ -107,3 +107,67 @@ TOASTER_APPLICATION_SCENE: dict[str, Any] = {
         },
     ],
 }
+
+
+def _read(path: Path) -> str:
+    return path.read_text(encoding="utf-8") if path.is_file() else ""
+
+
+def parse_json_text(text: str) -> dict[str, Any]:
+    blob = (text or "").strip()
+    if blob.startswith("```"):
+        blob = re.sub(r"^```(?:json)?\s*", "", blob)
+        blob = re.sub(r"\s*```$", "", blob)
+    return json.loads(blob)
+
+
+def has_gemini_key() -> bool:
+    key = os.environ.get("GEMINI_API_KEY", "").strip()
+    return bool(key)
+
+
+def _is_toaster_topic(topic: str) -> bool:
+    t = (topic or "").lower()
+    return "toaster" in t or "crumb tray" in t or "crumb-tray" in t
+
+
+def _mock_scene_for_topic(topic: str) -> str:
+    """Give offline/mock episodes the same location judgment expected from Gemini."""
+    text = (topic or "").lower()
+    if any(word in text for word in ("yard", "lawn", "anthill", "street", "mailbox", "outside")):
+        return "front_yard"
+    if any(word in text for word in ("porch", "neighbor", "night air", "visitor", "doorstep")):
+        return "porch"
+    if any(word in text for word in ("hall", "sneak", "foia", "envelope", "front door")):
+        return "hallway"
+    if any(word in text for word in ("kitchen", "fridge", "casserole", "dinner", "food", "toaster", "crumb tray")):
+        return "kitchen"
+    return "living_room"
+
+
+GEMINI_MODELS = ["gemini-3.7-flash", "gemini-3.6-flash", "gemini-2.5-flash"]
+TEST_REFUSE_SENTINEL = "__TEST_REFUSE__"
+
+
+class PromptRefused(Exception):
+    """Writer declined the prompt. .note is viewer-facing; credit should be refunded."""
+
+    def __init__(self, note: str = "") -> None:
+        self.note = (note or "").strip()
+        super().__init__(self.note)
+
+
+class WriterCascadeError(RuntimeError):
+    """No configured writer produced a valid scene after every attempt."""
+
+
+def model_cascade(preferred: str | None = None) -> list[str]:
+    raw = os.environ.get("GEMINI_MODELS", "").strip()
+    models = [m.strip() for m in raw.split(",") if m.strip()] if raw else list(GEMINI_MODELS)
+    order: list[str] = []
+    if preferred and str(preferred).strip():
+        order.append(str(preferred).strip())
+    for mid in models:
+        if mid not in order:
+            order.append(mid)
+    return order
