@@ -3,7 +3,7 @@ import json
 import pytest
 
 from orchestrator.gemini import GeminiClient, GeminiWriter, GEMINI_MODELS, WriterCascadeError, model_cascade
-from orchestrator.writer_cascade import install as _install_writer_cascade
+from orchestrator.writer_cascade import DEFAULT_VETO_NOTE, install as _install_writer_cascade
 
 _install_writer_cascade()
 
@@ -113,7 +113,23 @@ def test_writer_tries_next_model_after_refusal_and_validation_error(monkeypatch)
             return _valid_scene()
 
     out = GeminiWriter(Fake()).write_scene("", {}, {}, "a difficult prompt", source="viewer", username="Alex")
-    assert calls == ["writer-one", "writer-two", "writer-three"]
+    assert calls == ["writer-one"]
+    assert out == {"refuse": True, "note": "No."}
+
+
+def test_writer_tries_next_model_after_validation_error(monkeypatch):
+    monkeypatch.setenv("GEMINI_MODELS", "writer-one,writer-two,writer-three")
+    calls = []
+
+    class Fake:
+        def generate_json_once(self, prompt, model, temperature=0.9):
+            calls.append(model)
+            if model == "writer-one":
+                return _valid_scene("x" * 281)
+            return _valid_scene()
+
+    out = GeminiWriter(Fake()).write_scene("", {}, {}, "a difficult prompt", source="viewer", username="Alex")
+    assert calls == ["writer-one", "writer-two"]
     assert out["topic"] == "a difficult prompt by Alex"
     assert out["beats"][0]["animation"] == "double_take"
 
@@ -128,8 +144,22 @@ def test_writer_accepts_refusal_only_after_all_three_refuse(monkeypatch):
             return {"refuse": True, "note": f"Declined by {model}."}
 
     out = GeminiWriter(Fake()).write_scene("", {}, {}, "a difficult prompt", source="viewer")
-    assert calls == ["writer-one", "writer-two", "writer-three"]
+    assert calls == ["writer-one"]
     assert out == {"refuse": True, "note": "Declined by writer-one."}
+
+
+def test_writer_empty_refuse_note_is_veto_with_default(monkeypatch):
+    monkeypatch.setenv("GEMINI_MODELS", "writer-one,writer-two")
+    calls = []
+
+    class Fake:
+        def generate_json_once(self, prompt, model, temperature=0.9):
+            calls.append(model)
+            return {"refuse": True, "note": ""}
+
+    out = GeminiWriter(Fake()).write_scene("", {}, {}, "a difficult prompt", source="viewer")
+    assert calls == ["writer-one"]
+    assert out == {"refuse": True, "note": DEFAULT_VETO_NOTE}
 
 
 def test_writer_raises_only_after_all_three_invalid(monkeypatch):
