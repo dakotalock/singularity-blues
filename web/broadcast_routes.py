@@ -6,6 +6,7 @@ from fastapi import HTTPException, Response
 from fastapi.responses import FileResponse, JSONResponse
 
 from orchestrator import broadcast
+from orchestrator.playlist import broadcast_packets
 
 
 def register_broadcast(app) -> None:
@@ -43,6 +44,15 @@ def register_broadcast(app) -> None:
     @app.get("/broadcast/status.json", include_in_schema=False)
     def broadcast_health() -> dict:
         return broadcast.health()
+
+    @app.get("/broadcast/packets", include_in_schema=False)
+    def broadcast_packet_catalog() -> dict:
+        """Voiced episode packets for the offline 3D baker. Public show library."""
+        packets = broadcast_packets()
+        return {
+            "count": len(packets),
+            "packets": packets,
+        }
 
     @app.get("/broadcast/window.json", include_in_schema=False)
     def broadcast_window() -> JSONResponse:
