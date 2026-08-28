@@ -140,7 +140,7 @@ class GeminiWriter(Writer):
             )
             + "\n\n"
             + wrap_untrusted("VIEWER_TOPIC", {"topic": topic, "claimed_source": source, "title": heading})
-            + "\nOutput ONLY valid JSON: either scene JSON or a refuse object.\n"
+            + "\nOutput ONLY valid scene JSON. Use a refuse object only for a genuine topic veto.\n"
         )
         models = model_cascade()
         failures: list[Exception] = []
