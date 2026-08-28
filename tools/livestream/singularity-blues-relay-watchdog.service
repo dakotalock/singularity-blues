@@ -1,0 +1,9 @@
+[Unit]
+Description=Health check for the Singularity Blues relay
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/singularity-blues-relay.env
+Environment=STATE_DIR=/var/lib/singularity-blues-relay
+ExecStart=/opt/singularity-blues/tools/livestream/healthcheck.sh
+ExecStopPost=/bin/sh -c 'if [ "$$EXIT_STATUS" != 0 ]; then systemctl kill --kill-who=all singularity-blues-relay.service; fi'

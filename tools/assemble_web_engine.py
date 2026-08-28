@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import io
+import re
 import struct
 import urllib.request
 import zipfile
@@ -24,6 +25,37 @@ def _decode_joined(paths: list[Path]) -> bytes:
     return b"".join(base64.b64decode(p.read_text().encode("ascii")) for p in paths)
 
 
+def _patch_stage_index(html: bytes, *, pck_size: int | None = None) -> bytes:
+    """Put Private Showing in the real POST body without wrapping fetch()."""
+    private_field = (
+        b"private_showing: !!(document.getElementById('sitcom-private') "
+        b"&& document.getElementById('sitcom-private').checked)"
+    )
+    if private_field not in html:
+        needle = b"ltm_pin: !!(pinEl && pinEl.checked)"
+        if needle not in html:
+            raise RuntimeError("stage-index prompt body hook not found")
+        html = html.replace(needle, needle + b",\n\t\t\t\t\t" + private_field, 1)
+    if pck_size is not None:
+        html, count = re.subn(rb'"index\.pck":\d+', f'"index.pck":{int(pck_size)}'.encode(), html, count=1)
+        if count != 1:
+            raise RuntimeError("stage-index pck size hook not found")
+    return html
+
+
+def _built_pck_size() -> int | None:
+    pck = STAGE / "index.pck"
+    if pck.is_file():
+        return pck.stat().st_size
+    chunks = sorted(PARTS.glob("index.pck.part-*.b64"))
+    if chunks:
+        return len(_decode_joined(chunks))
+    whole = PARTS / "index.pck.b64"
+    if whole.is_file():
+        return len(base64.b64decode(whole.read_text().encode("ascii")))
+    return None
+
+
 def _write_stage_index() -> None:
     dest = STAGE / "index.html"
     chunks = sorted(PARTS.glob("stage-index.part-*.b64"))
@@ -31,8 +63,9 @@ def _write_stage_index() -> None:
         print("no stage-index parts; skip")
         return
     html = _decode_joined(chunks)
-    if len(html) < 30000 or b'"index.pck":130512' not in html:
+    if len(html) < 30000 or not re.search(rb'"index\.pck":\d+', html):
         raise RuntimeError(f"stage-index assemble too small or missing pck: {len(html)}")
+    html = _patch_stage_index(html, pck_size=_built_pck_size())
     dest.write_bytes(html)
     print("wrote", dest, dest.stat().st_size)
 

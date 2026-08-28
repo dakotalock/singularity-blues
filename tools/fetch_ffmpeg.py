@@ -6,6 +6,7 @@ Used on Render at build so the TV packager can emit H.264/AAC segments.
 from __future__ import annotations
 
 import os
+import shutil
 import stat
 import tarfile
 import tempfile
@@ -38,17 +39,28 @@ def _ensure_ffmpeg() -> None:
         return
     print("fetch ffmpeg static")
     DEST.parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory() as tmp:
-        tarball = Path(tmp) / "ffmpeg.tar.xz"
-        _download(URL, tarball, timeout=180)
-        with tarfile.open(tarball, "r:xz") as tf:
-            for member in tf.getmembers():
-                name = Path(member.name).name
-                if name == "ffmpeg" and member.isfile():
-                    tf.extract(member, path=tmp)
-                    src = Path(tmp) / member.name
-                    src.replace(DEST)
-                    break
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            tarball = Path(tmp) / "ffmpeg.tar.xz"
+            _download(URL, tarball, timeout=180)
+            with tarfile.open(tarball, "r:xz") as tf:
+                for member in tf.getmembers():
+                    name = Path(member.name).name
+                    if name == "ffmpeg" and member.isfile():
+                        tf.extract(member, path=tmp)
+                        src = Path(tmp) / member.name
+                        src.replace(DEST)
+                        break
+    except Exception as exc:
+        # requirements.txt includes imageio-ffmpeg, so a transient mirror
+        # failure cannot break the entire public-site deployment.
+        print("static ffmpeg fetch failed; use wheel fallback:", type(exc).__name__)
+        try:
+            import imageio_ffmpeg  # type: ignore
+
+            shutil.copy2(imageio_ffmpeg.get_ffmpeg_exe(), DEST)
+        except Exception as fallback_exc:
+            raise SystemExit("ffmpeg fetch and wheel fallback both failed") from fallback_exc
     if DEST.is_file():
         DEST.chmod(DEST.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
         print("ffmpeg extracted", DEST.stat().st_size)
@@ -67,7 +79,12 @@ def _ensure_font() -> None:
 
 def main() -> None:
     _ensure_ffmpeg()
-    _ensure_font()
+    try:
+        _ensure_font()
+    except Exception as exc:
+        # Pillow can still use a system or built-in font; missing title-card
+        # typography must not take the interactive show offline.
+        print("font fetch skipped:", type(exc).__name__)
 
 
 if __name__ == "__main__":

@@ -105,7 +105,7 @@ func _http_json(url: String) -> Dictionary:
 
 
 func _web_boot() -> void:
-	var data := await _http_json(_api_url("/now-playing"))
+	var data := await _http_json(_api_url("/now-playing?player=1"))
 	if data.is_empty() or not data.has("beats") or (data.get("beats", []) as Array).is_empty():
 		play_dict(_embedded_seed(), true)
 		return
@@ -119,7 +119,7 @@ func _web_poll() -> void:
 	if _web_polling:
 		return
 	_web_polling = true
-	var data := await _http_json(_api_url("/now-playing"))
+	var data := await _http_json(_api_url("/now-playing?player=1"))
 	_web_polling = false
 	if _playing:
 		return

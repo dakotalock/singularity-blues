@@ -1,4 +1,5 @@
 import base64
+import importlib.util
 from pathlib import Path
 
 
@@ -96,13 +97,20 @@ def test_private_showing_copy_and_control():
     assert "touch-action: pan-y" in html
     assert "max-height: min(52dvh, 520px)" in html
     assert "body.broadcast #player-controls" in html
-    assert "private_showing" in js
-    assert "/episode/private-packet?job_id=" in js
-    assert "isPlayerPoll" in js
-    assert "privateJobs" in js
-    assert "new Response(" not in js
-    assert "privateOverride" not in js
-    assert "isStatusPoll" in js
-    assert "statusFetch(input, options, 3)" in js
-    assert "Object.keys(init).length" in js
-    assert "absoluteSameOrigin" in js
+    # Safari's `SyntaxError: The string did not match the expected pattern`
+    # came from globally wrapping the browser's host fetch/Request APIs.
+    assert "window.fetch =" not in js
+    assert "nativeFetch" not in js
+    assert "new Request(" not in js
+
+    spec = importlib.util.spec_from_file_location("assemble_web_engine", ROOT / "tools" / "assemble_web_engine.py")
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    patched = module._patch_stage_index(html.encode("utf-8")).decode("utf-8")
+    assert "private_showing:" in patched
+    assert "sitcom-private" in patched
+    assert patched.count("private_showing:") == 1
+    assert module._patch_stage_index(patched.encode("utf-8")) == patched.encode("utf-8")
+    sized = module._patch_stage_index(patched.encode("utf-8"), pck_size=130528)
+    assert b'"index.pck":130528' in sized

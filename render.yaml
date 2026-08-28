@@ -17,6 +17,32 @@ services:
         sync: false
       - key: DATABASE_URL
         sync: false
+      # Cheap TV feed: render scene packets once as H.264/AAC segments. The
+      # public Godot/WebGL player is separate and keeps its full fidelity.
+      - key: BROADCAST_VIDEO_ENABLED
+        value: "1"
+      - key: BROADCAST_BUFFER_SECONDS
+        value: "60"
+      - key: BROADCAST_ENCODER_THREADS
+        value: "1"
+      # Limit background rendering to 2.5x real time so paid prompts/Piper keep
+      # CPU priority. The completed R2 rerun buffer absorbs this delay.
+      - key: BROADCAST_RENDER_SPEED_LIMIT
+        value: "2.5"
+      - key: BROADCAST_MAX_DISK_MB
+        value: "384"
+      - key: R2_ACCOUNT_ID
+        sync: false
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
+      - key: R2_BUCKET
+        sync: false
+      # Public custom-domain/base URL for the same R2 bucket. This keeps the
+      # large 24/7 segment traffic off Render after each one-time upload.
+      - key: R2_PUBLIC_BASE_URL
+        sync: false
       - key: STRIPE_SECRET_KEY
         sync: false
       - key: STRIPE_WEBHOOK_SECRET

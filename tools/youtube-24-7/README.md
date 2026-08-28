@@ -1,5 +1,9 @@
 # 24/7 YouTube helper
 
+> Legacy rollback path. The normal deployment should use the pre-encoded packet
+> relay in [`tools/livestream/`](../livestream/README.md), which removes the
+> browser, WebGL, capture, and encoder from the small VM.
+
 Kiosk-capture the living-room set (`?broadcast=1` hides Selector chrome) and push it to YouTube Live from an always-on OCI VM. A curl loop pings the site so Render’s free instance does not sleep.
 
 **YouTube Live must already be enabled on the channel** (YouTube Studio → Go live). This script cannot turn that on.

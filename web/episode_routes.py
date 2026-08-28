@@ -47,6 +47,30 @@ def register_episode(app):
             raise HTTPException(status_code=404, detail="unknown job")
         return stored
 
+    def _private_packet_for_player(request: Request) -> dict | None:
+        """Hand the oldest ready private showing to its buyer's Godot player once."""
+        viewer = m.verify_buyer(request.cookies.get(m.BUYER_COOKIE)) or ""
+        if not viewer:
+            return None
+        with m._jobs_lock:
+            candidates = sorted(
+                (
+                    job
+                    for job in m._jobs.values()
+                    if job.get("private")
+                    and job.get("status") == "ready"
+                    and isinstance(job.get("packet"), dict)
+                    and not job.get("player_delivered")
+                    and str(job.get("buyer_id") or "") == viewer
+                ),
+                key=lambda job: float(job.get("finished_at") or job.get("created_at") or 0.0),
+            )
+            if not candidates:
+                return None
+            job = candidates[0]
+            job["player_delivered"] = True
+            return dict(job["packet"])
+
     @app.post("/episode")
     async def post_episode(
         request: Request,
@@ -282,7 +306,11 @@ def register_episode(app):
         return {"now": board.get("now") or "", "queue": board.get("queue") or [], "writing": writing}
 
     @app.get("/now-playing")
-    def now_playing() -> dict:
+    def now_playing(request: Request, player: bool = False) -> dict:
+        if player:
+            private_packet = _private_packet_for_player(request)
+            if private_packet is not None:
+                return private_packet
         packet = playlist_current()
         if packet.get("beats"):
             return packet

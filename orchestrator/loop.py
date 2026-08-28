@@ -162,6 +162,12 @@ def run_episode(
         playlist_pin(packet)
     else:
         playlist_absorb(packet)
+    try:
+        from orchestrator import broadcast
+
+        broadcast.enqueue(packet, priority=0)
+    except Exception:
+        logger.exception("could not queue episode %s for the broadcast renderer", episode_id)
     if progress:
         progress({"phase": "ready", "beat": len(packet.get("beats") or []), "beats": len(packet.get("beats") or []), "speaker": ""})
 

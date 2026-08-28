@@ -722,3 +722,10 @@ def snapshot() -> dict[str, Any]:
             "remaining_seconds": rem,
             "topics": [p.get("topic") for p in state["packets"]],
         }
+
+
+def broadcast_packets() -> list[dict[str, Any]]:
+    """Stable voiced packets for the independent pre-encoded TV renderer."""
+    with _lock:
+        state = _load()
+        return [deepcopy(packet) for packet in state["packets"] if _packet_wav_ok(packet)]

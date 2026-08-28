@@ -10,6 +10,7 @@ data/*.db
 data/*.db-journal
 data/*.log
 data/tts/
+data/broadcast/
 tts/out/
 *.wav
 *.mp4
@@ -21,6 +22,9 @@ tools/*.zip
 tools/*.tar.gz
 tools/piper/
 tools/Godot_*
+tools/ffmpeg
+tools/DejaVuSans.ttf
+tools/*.part
 tts/voices/*.onnx
 
 # Godot cache

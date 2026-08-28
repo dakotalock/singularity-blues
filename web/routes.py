@@ -41,9 +41,11 @@ from orchestrator.playlist import (
     snapshot as playlist_snapshot,
 )
 from orchestrator import archive
+from orchestrator import broadcast
 from orchestrator import r2
 from orchestrator import voice_queue
 from orchestrator.tts import piper_available
+from web.broadcast_routes import register_broadcast
 from web.episode_routes import register_episode
 
 
@@ -53,11 +55,10 @@ def register(app):
 
     def _broadcast_health() -> dict:
         try:
-            from orchestrator import tv as tvpack
-            st = tvpack.status()
+            st = broadcast.health()
             return {
                 "ffmpeg": bool(st.get("ffmpeg")),
-                "broadcast_queue_seconds": float(st.get("queue_seconds") or 0),
+                "broadcast_queue_seconds": float(st.get("buffered_seconds") or 0),
             }
         except Exception:
             return {"ffmpeg": False, "broadcast_queue_seconds": 0}
@@ -91,9 +92,10 @@ def register(app):
 
         voice_queue.start()
         try:
-            from orchestrator import tv as tvpack
-            tvpack.start()
+            broadcast.start()
         except Exception:
+            # The public WebGL player and prompt path must survive a TV renderer
+            # configuration failure. /broadcast/healthz reports the fault.
             pass
 
         def _boot_house() -> None:
@@ -267,5 +269,4 @@ def register(app):
         return HTMLResponse(_stage_html())
 
     register_episode(app)
-    from web.broadcast_routes import register as register_broadcast
     register_broadcast(app)

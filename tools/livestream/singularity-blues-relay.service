@@ -1,0 +1,27 @@
+[Unit]
+Description=Singularity Blues pre-encoded Twitch relay
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=300
+StartLimitBurst=8
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/singularity-blues
+EnvironmentFile=/etc/singularity-blues-relay.env
+Environment=STATE_DIR=/var/lib/singularity-blues-relay
+ExecStart=/opt/singularity-blues/tools/livestream/relay.sh
+Restart=always
+RestartSec=15
+TimeoutStopSec=20
+KillMode=control-group
+StateDirectory=singularity-blues-relay
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectKernelTunables=true
+ProtectControlGroups=true
+ReadWritePaths=/var/lib/singularity-blues-relay
+
+[Install]
+WantedBy=multi-user.target

@@ -333,6 +333,16 @@ def test_private_showing_spends_without_public_queue(monkeypatch, tmp_path):
     assert body["topic"] not in topics
     assert body["topic"] not in writing
 
+    # Page chrome remains on the public channel. Only this buyer's Godot player
+    # asks for the private packet, and it is handed off exactly once.
+    public_packet = client.get("/now-playing").json()
+    assert public_packet.get("episode_id") != snap["packet"]["episode_id"]
+    player_packet = client.get("/now-playing", params={"player": 1}).json()
+    assert player_packet["episode_id"] == snap["packet"]["episode_id"]
+    assert player_packet.get("private") is True
+    second_poll = client.get("/now-playing", params={"player": 1}).json()
+    assert second_poll.get("episode_id") != snap["packet"]["episode_id"]
+
     stranger = TestClient(app)
     stranger.cookies.set("sb_buyer", sign_buyer("somebodyElse"))
     hidden = stranger.get("/episode/status", params={"job_id": body["job_id"]})

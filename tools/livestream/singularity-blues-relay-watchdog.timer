@@ -1,0 +1,10 @@
+[Unit]
+Description=Run Singularity Blues relay health check every 30 seconds
+
+[Timer]
+OnBootSec=45
+OnUnitActiveSec=30
+AccuracySec=5
+
+[Install]
+WantedBy=timers.target

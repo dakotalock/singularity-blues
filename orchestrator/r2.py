@@ -40,8 +40,15 @@ def _client():
 def put_file(path: Path) -> bool:
     if not configured() or not path.is_file():
         return False
+    return put_object_file(path, object_key(path.name))
+
+
+def put_object_file(path: Path, key: str) -> bool:
+    """Upload an explicit object key. Used by the persistent broadcast cache."""
+    if not configured() or not path.is_file() or not str(key).strip():
+        return False
     try:
-        _client().upload_file(str(path), os.environ["R2_BUCKET"].strip(), object_key(path.name))
+        _client().upload_file(str(path), os.environ["R2_BUCKET"].strip(), str(key).lstrip("/"))
         return True
     except Exception:
         return False
@@ -53,8 +60,15 @@ def get_bytes(filename: str) -> bytes | None:
     name = Path(filename).name
     if not name or name != filename and "/" in filename:
         name = Path(filename).name
+    return get_object_bytes(object_key(name))
+
+
+def get_object_bytes(key: str) -> bytes | None:
+    """Read an explicit object key without exposing R2 credentials to callers."""
+    if not configured() or not str(key).strip():
+        return None
     try:
-        obj = _client().get_object(Bucket=os.environ["R2_BUCKET"].strip(), Key=object_key(name))
+        obj = _client().get_object(Bucket=os.environ["R2_BUCKET"].strip(), Key=str(key).lstrip("/"))
         return obj["Body"].read()
     except Exception:
         return None

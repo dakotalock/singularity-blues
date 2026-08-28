@@ -6,3 +6,5 @@ httpx
 psycopg[binary]
 stripe>=15.0.0,<16
 boto3
+Pillow
+imageio-ffmpeg

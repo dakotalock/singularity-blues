@@ -74,6 +74,26 @@ The performance schema includes five sets, twenty-five facial emotions, and twen
 
 The renderer has a central interruption barrier: once a scene begins, incoming episode packets are deduplicated and held until its final beat and `scene_finished`. Playlist updates cannot replace a performance mid-episode.
 
+## Cheap pre-encoded livestream
+
+The ordinary site remains the full Godot/WebGL show. An independent TV renderer
+can encode the already-known scene packet and Piper WAVs once as 640x360,
+30 FPS H.264/AAC HLS fragments. Completed fragments are cached in the existing
+Cloudflare R2 bucket, while the relay VM only remuxes them to RTMP with
+`-c:v copy -c:a copy`. It runs no Chromium, Xvfb, Godot, WebGL, capture,
+scaling, interpolation, decoding, or normal-path encoding.
+
+The rolling feed is `/broadcast/live.m3u8`; metrics are at
+`/broadcast/healthz`. Exact setup, supervision, benchmarks, failure behavior,
+and rollback commands are in [tools/livestream/README.md](tools/livestream/README.md).
+
+| Variable | Purpose |
+| --- | --- |
+| `BROADCAST_VIDEO_ENABLED` | Start the backend TV encoder. Off by default in local development. |
+| `BROADCAST_BUFFER_SECONDS` | Completed content kept ahead of live playback (30-180 seconds). |
+| `BROADCAST_MAX_DISK_MB` | Backend local broadcast-cache cap. |
+| `R2_PUBLIC_BASE_URL` | Public base URL of the configured R2 bucket, avoiding Render video egress. |
+
 ## Phone test (one button)
 
 ```bash
