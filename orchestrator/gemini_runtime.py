@@ -22,7 +22,6 @@ from orchestrator.writer_cascade import (
     DEFAULT_VETO_NOTE,
     WRITER_TEMPERATURE,
     deliberate_refuse_note,
-    writer_response_schema,
 )
 
 
@@ -95,7 +94,12 @@ class GeminiClient:
         model: str,
         temperature: float = WRITER_TEMPERATURE,
     ) -> dict[str, Any]:
-        """Call one writer with a scene-or-veto schema so malformed JSON cannot look like a veto."""
+        """Call one writer as JSON. Do not send the scene-or-veto schema.
+
+        That schema 400s Gemini (INVALID_ARGUMENT / too many states) and leaves
+        the stage stuck on "writing" while every fallback burns its 429 quota.
+        Veto vs scene is decided after parse by deliberate_refuse_note / Pydantic.
+        """
         if str(model).lower().startswith("gemma-"):
             return self.generate_json_once(prompt, model=model, temperature=temperature)
         resp = self.client.models.generate_content(
@@ -104,7 +108,6 @@ class GeminiClient:
             config=self._json_config(
                 model=model,
                 temperature=temperature,
-                response_json_schema=writer_response_schema(),
             ),
         )
         text = getattr(resp, "text", None) or ""
@@ -194,7 +197,7 @@ class GeminiWriter(Writer):
                     "source": source,
                     "title": heading,
                     "username": username or "",
-                    "paid": bool(paid),
+                    "paid": paid,
                     "refuse_reason": refuse_reason or "",
                     "must_honor_accepted_viewer_topic": source == "viewer",
                     "preferences": memories.get("preferences"),
