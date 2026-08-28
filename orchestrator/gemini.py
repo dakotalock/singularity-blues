@@ -94,7 +94,7 @@ TOASTER_APPLICATION_SCENE: dict[str, Any] = {
             "line": "No. Which is why the crumb tray now has standing. Motion carries. The fridge already has dinner veto; precedent is sloppy but binding.",
             "emotion": "earnest",
             "animation": "gesture_small",
-            "target": "reed",
+            "target": None,
             "camera": "wide",
         },
         {
