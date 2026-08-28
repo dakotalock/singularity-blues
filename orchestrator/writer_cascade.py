@@ -1,4 +1,4 @@
-"""Any writer error falls through to the next model. Refund only after the cascade is exhausted."""
+"""Writer errors fall through to the next model. A deliberate topic veto stops immediately."""
 
 from __future__ import annotations
 
@@ -12,8 +12,10 @@ from orchestrator.denver import denver_logged_at
 from orchestrator.moderation import episode_title, wrap_untrusted
 from orchestrator.schemas import validate_scene
 
+DEFAULT_VETO_NOTE = "The topic was moderated by the AI."
+
 _INFRA_REFUSE = re.compile(
-    r"(?i)\b(json|timeout|timed out|http\s*[45]\d\d|exception|traceback|"
+    r"(?i)\b(json|jsondecodeerror|timeout|timed out|http\s*[45]\d\d|exception|traceback|"
     r"internal error|empty response|truncated|schema validation|"
     r"resource_exhausted|429|500|502|503)\b"
 )
@@ -30,7 +32,7 @@ def deliberate_refuse_note(payload: Any) -> str | None:
     note = payload.get("note") if isinstance(payload.get("note"), str) else ""
     note = note.strip()
     if not note:
-        return None
+        return DEFAULT_VETO_NOTE
     if _INFRA_REFUSE.search(note):
         return None
     return note
@@ -144,15 +146,13 @@ def patched_write_scene(
         + "\nOutput ONLY valid JSON: either scene JSON or a refuse object.\n"
     )
     models = model_cascade()
-    refusals: list[str] = []
     failures: list[Exception] = []
     for model_id in models:
         try:
             payload = invoke_one_writer_model(self.client, prompt, model_id, 1.05)
             note = deliberate_refuse_note(payload)
             if note is not None:
-                refusals.append(note)
-                continue
+                return {"refuse": True, "note": note}
             if isinstance(payload, dict) and payload.get("refuse"):
                 raise RuntimeError("writer returned a malformed refuse")
             if not isinstance(payload, dict):
@@ -164,9 +164,6 @@ def patched_write_scene(
             failures.append(exc)
             continue
 
-    if models and refusals and len(refusals) == len(models) and not failures:
-        note = next((item for item in refusals if item.strip()), "")
-        return {"refuse": True, "note": note}
     if failures:
         last = failures[-1]
         raise WriterCascadeError(
