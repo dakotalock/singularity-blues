@@ -22,6 +22,7 @@ from orchestrator.playlist import board as playlist_board
 from orchestrator.playlist import current as playlist_current
 from orchestrator.playlist import snapshot as playlist_snapshot
 from orchestrator import r2
+from orchestrator.writer_cascade import DEFAULT_VETO_NOTE
 
 
 def register_episode(app):
@@ -156,12 +157,18 @@ def register_episode(app):
                     refund_credit(buyer_id, 1)
                 if pin_spent:
                     refund_pin(buyer_id, 1)
+                note = m._safe_refuse_note(exc.note) or DEFAULT_VETO_NOTE
+                error = (
+                    "The topic was moderated by the AI. Your prompt credit was restored."
+                    if spent
+                    else DEFAULT_VETO_NOTE
+                )
                 with m._jobs_lock:
                     job = m._jobs[job_id]
                     job["status"] = "refused"
                     job["phase"] = "refused"
-                    job["note"] = m._safe_refuse_note(exc.note)
-                    job["error"] = ""
+                    job["note"] = note
+                    job["error"] = error
                     job["refunded"] = True
                     job["credits"] = balance(buyer_id)["credits"]
             except Exception as exc:
