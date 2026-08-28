@@ -47,8 +47,21 @@ from orchestrator.tts import piper_available
 from web.episode_routes import register_episode
 
 
+
 def register(app):
     import web.app as m
+
+    def _broadcast_health() -> dict:
+        try:
+            from orchestrator import tv as tvpack
+            st = tvpack.status()
+            return {
+                "ffmpeg": bool(st.get("ffmpeg")),
+                "broadcast_queue_seconds": float(st.get("queue_seconds") or 0),
+            }
+        except Exception:
+            return {"ffmpeg": False, "broadcast_queue_seconds": 0}
+
 
     class CheckoutIn(BaseModel):
         bundle: str
@@ -77,6 +90,11 @@ def register(app):
             subprocess.run([sys.executable, str(assembler)], check=False)
 
         voice_queue.start()
+        try:
+            from orchestrator import tv as tvpack
+            tvpack.start()
+        except Exception:
+            pass
 
         def _boot_house() -> None:
             try:
@@ -106,6 +124,7 @@ def register(app):
             "stage": (m.STAGE_DIR / "index.html").is_file() and (m.STAGE_DIR / "index.wasm").is_file(),
             "tts_wavs": len(wavs),
             "stripe": stripe_configured(),
+            **_broadcast_health(),
         }
 
     @app.get("/account")
@@ -248,3 +267,5 @@ def register(app):
         return HTMLResponse(_stage_html())
 
     register_episode(app)
+    from web.broadcast_routes import register as register_broadcast
+    register_broadcast(app)
