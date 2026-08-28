@@ -63,6 +63,12 @@ class GeminiClient:
 
     def generate_json_once(self, prompt: str, *, model: str, temperature: float = 0.9) -> dict[str, Any]:
         """Call exactly one model. Writer-level validation decides whether to continue."""
+        if self._is_gemma(model):
+            prompt = (
+                prompt
+                + "\n\nReturn one JSON object only. Do not wrap it in quotes or markdown. "
+                "The first non-whitespace character must be {."
+            )
         resp = self.client.models.generate_content(
             model=model,
             contents=prompt,
