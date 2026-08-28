@@ -94,7 +94,7 @@ TOASTER_APPLICATION_SCENE: dict[str, Any] = {
             "line": "No. Which is why the crumb tray now has standing. Motion carries. The fridge already has dinner veto; precedent is sloppy but binding.",
             "emotion": "earnest",
             "animation": "gesture_small",
-            "target": None,
+            "target": "reed",
             "camera": "wide",
         },
         {
@@ -116,8 +116,8 @@ def _read(path: Path) -> str:
 def parse_json_text(text: str) -> dict[str, Any]:
     blob = (text or "").strip()
     if blob.startswith("```"):
-        blob = re.sub(r"^```(?:json)?\\s*", "", blob)
-        blob = re.sub(r"\\s*```$", "", blob)
+        blob = re.sub(r"^```(?:json)?\s*", "", blob)
+        blob = re.sub(r"\s*```$", "", blob)
     return json.loads(blob)
 
 
