@@ -320,24 +320,48 @@ def test_writer_model_cascade_appends_gemma4_after_gemini(monkeypatch):
     ]
 
 
-def test_writer_skips_remaining_gemini_on_429_and_uses_gemma(monkeypatch):
-    monkeypatch.setenv("GEMINI_MODELS", "gemini-3.7-flash,gemini-3.6-flash")
+def test_writer_tries_each_gemini_on_429_then_gemma(monkeypatch):
+    monkeypatch.setenv("GEMINI_MODELS", "gemini-3.7-flash,gemini-2.5-flash-lite")
     monkeypatch.setenv("GEMMA_MODELS", "gemma-4-31b-it")
     calls = []
 
     class Fake:
         def generate_writer_json_once(self, prompt, model, temperature=0.9):
             calls.append(("structured", model))
-            if str(model).startswith("gemini-"):
+            if model == "gemini-3.7-flash":
                 raise RuntimeError("429 RESOURCE_EXHAUSTED")
-            raise AssertionError("Gemma should not use the Gemini JSON schema path")
+            return _valid_scene()
 
         def generate_json_once(self, prompt, model, temperature=0.9):
             calls.append(("plain", model))
             return _valid_scene()
 
     out = GeminiWriter(Fake()).write_scene("", {}, {}, "a difficult prompt", source="viewer")
+    assert calls[0] == ("structured", "gemini-3.7-flash")
+    assert calls[1] == ("structured", "gemini-2.5-flash-lite")
+    assert ("plain", "gemma-4-31b-it") not in calls
+    assert out["scene"] == "living_room"
+
+
+def test_writer_uses_gemma4_after_all_gemini_rate_limits(monkeypatch):
+    monkeypatch.setenv("GEMINI_MODELS", "gemini-3.7-flash,gemini-2.5-flash-lite")
+    monkeypatch.setenv("GEMMA_MODELS", "gemma-4-31b-it,gemma-4-26b-a4b-it")
+    calls = []
+
+    class Fake:
+        def generate_writer_json_once(self, prompt, model, temperature=0.9):
+            calls.append(("structured", model))
+            raise RuntimeError("429 RESOURCE_EXHAUSTED")
+
+        def generate_json_once(self, prompt, model, temperature=0.9):
+            calls.append(("plain", model))
+            if model == "gemma-4-31b-it":
+                raise RuntimeError("429 RESOURCE_EXHAUSTED")
+            return _valid_scene()
+
+    out = GeminiWriter(Fake()).write_scene("", {}, {}, "a difficult prompt", source="viewer")
     assert ("structured", "gemini-3.7-flash") in calls
-    assert ("structured", "gemini-3.6-flash") not in calls
+    assert ("structured", "gemini-2.5-flash-lite") in calls
     assert ("plain", "gemma-4-31b-it") in calls
+    assert ("plain", "gemma-4-26b-a4b-it") in calls
     assert out["scene"] == "living_room"
