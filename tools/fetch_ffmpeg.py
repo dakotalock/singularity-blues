@@ -14,25 +14,33 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 DEST = ROOT / "tools" / "ffmpeg"
-# Public static build (GPL). ~40-80MB.
+FONT = ROOT / "tools" / "DejaVuSans.ttf"
 URL = "https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz"
+FONT_URL = "https://github.com/dejavu-fonts/dejavu-fonts/raw/version_2_37/ttf/DejaVuSans.ttf"
 
 
-def main() -> None:
+def _download(url: str, dest: Path, timeout: int = 180) -> None:
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    tmp = dest.with_suffix(dest.suffix + ".part")
+    req = urllib.request.Request(url, headers={"User-Agent": "singularity-blues-build"})
+    with urllib.request.urlopen(req, timeout=timeout) as resp, tmp.open("wb") as out:
+        while True:
+            chunk = resp.read(1024 * 256)
+            if not chunk:
+                break
+            out.write(chunk)
+    tmp.replace(dest)
+
+
+def _ensure_ffmpeg() -> None:
     if DEST.is_file() and os.access(DEST, os.X_OK) and DEST.stat().st_size > 1000:
         print("ffmpeg present")
         return
-    DEST.parent.mkdir(parents=True, exist_ok=True)
     print("fetch ffmpeg static")
-    req = urllib.request.Request(URL, headers={"User-Agent": "singularity-blues-build"})
+    DEST.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory() as tmp:
         tarball = Path(tmp) / "ffmpeg.tar.xz"
-        with urllib.request.urlopen(req, timeout=180) as resp, tarball.open("wb") as out:
-            while True:
-                chunk = resp.read(1024 * 256)
-                if not chunk:
-                    break
-                out.write(chunk)
+        _download(URL, tarball, timeout=180)
         with tarfile.open(tarball, "r:xz") as tf:
             for member in tf.getmembers():
                 name = Path(member.name).name
@@ -46,6 +54,20 @@ def main() -> None:
         print("ffmpeg extracted", DEST.stat().st_size)
     else:
         raise SystemExit("ffmpeg extract failed")
+
+
+def _ensure_font() -> None:
+    if FONT.is_file() and FONT.stat().st_size > 1000:
+        print("font present")
+        return
+    print("fetch DejaVuSans")
+    _download(FONT_URL, FONT, timeout=120)
+    print("font wrote", FONT.stat().st_size)
+
+
+def main() -> None:
+    _ensure_ffmpeg()
+    _ensure_font()
 
 
 if __name__ == "__main__":
