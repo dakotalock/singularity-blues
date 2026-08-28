@@ -83,8 +83,7 @@ relay_source() {
   echo "$(date -u +%FT%TZ) source available; starting HLS packet copy"
   run_ffmpeg \
     -nostdin -hide_banner -loglevel warning \
-    -rw_timeout 20000000 -reconnect 1 -reconnect_streamed 1 \
-    -reconnect_at_eof 1 -reconnect_delay_max 10 \
+    -rw_timeout 20000000 \
     -fflags +genpts+discardcorrupt -re -i "$SOURCE_URL" \
     -map 0:v:0 -map 0:a:0 -c:v copy -c:a copy \
     -flvflags no_duration_filesize -progress "$PROGRESS_PATH" \
