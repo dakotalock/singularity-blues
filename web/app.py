@@ -59,6 +59,7 @@ from orchestrator.playlist import (
 )
 from orchestrator.seed import seed
 from orchestrator.tts import piper_available
+from orchestrator.writer_cascade import DEFAULT_VETO_NOTE
 
 load_dotenv()
 
@@ -122,12 +123,12 @@ def _airing_topic() -> str:
 def _safe_refuse_note(note: str | None) -> str:
     raw = (note or "").strip()
     if not raw:
-        return ""
+        return DEFAULT_VETO_NOTE
     text = raw.splitlines()[0].strip()
     if not text or len(text) > 180:
-        return ""
+        return DEFAULT_VETO_NOTE
     if re.search(r"gemini|piper|gpt-?\d|claude|openai|google-genai", text, re.I):
-        return ""
+        return DEFAULT_VETO_NOTE
     return text[:160]
 
 
