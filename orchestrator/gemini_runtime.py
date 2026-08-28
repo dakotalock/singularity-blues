@@ -18,7 +18,12 @@ from orchestrator.gemini import (
 from orchestrator.gemini_mock import MockWriter, Writer
 from orchestrator.moderation import episode_title, wrap_untrusted
 from orchestrator.schemas import validate_scene
-from orchestrator.writer_cascade import DEFAULT_VETO_NOTE, deliberate_refuse_note
+from orchestrator.writer_cascade import (
+    DEFAULT_VETO_NOTE,
+    WRITER_TEMPERATURE,
+    deliberate_refuse_note,
+    writer_response_schema,
+)
 
 
 class GeminiClient:
@@ -51,7 +56,49 @@ class GeminiClient:
                 text = resp.candidates[0].content.parts[0].text
             except Exception:
                 text = ""
-        return parse_json_text(text)
+        blob = (text or "").strip()
+        if not blob:
+            raise RuntimeError("empty writer response")
+        payload = parse_json_text(blob)
+        if not isinstance(payload, dict):
+            raise TypeError("response was not a JSON object")
+        return payload
+
+    def generate_writer_json_once(
+        self,
+        prompt: str,
+        *,
+        model: str,
+        temperature: float = WRITER_TEMPERATURE,
+    ) -> dict[str, Any]:
+        """Call one writer with a scene-or-veto schema so malformed JSON cannot look like a veto."""
+        resp = self.client.models.generate_content(
+            model=model,
+            contents=prompt,
+            config=self._types.GenerateContentConfig(
+                temperature=min(1.0, max(0.0, temperature)),
+                response_mime_type="application/json",
+                response_json_schema=writer_response_schema(),
+            ),
+        )
+        text = getattr(resp, "text", None) or ""
+        if not text and getattr(resp, "candidates", None):
+            try:
+                text = resp.candidates[0].content.parts[0].text
+            except Exception:
+                text = ""
+        blob = (text or "").strip()
+        if not blob:
+            raise RuntimeError("empty writer response")
+        payload = parse_json_text(blob)
+        if not isinstance(payload, dict):
+            raise TypeError("writer response was not a JSON object")
+        result = payload.get("result")
+        if isinstance(result, dict):
+            return result
+        # Compatibility with providers/test doubles that already return the
+        # inner object even when given a top-level response schema.
+        return payload
 
     def generate_json(self, prompt: str, *, model: str | None = None, temperature: float = 0.9) -> dict[str, Any]:
         last_err: Exception | None = None
@@ -146,11 +193,13 @@ class GeminiWriter(Writer):
         failures: list[Exception] = []
         for model_id in models:
             try:
-                generate_once = getattr(self.client, "generate_json_once", None)
+                generate_once = getattr(self.client, "generate_writer_json_once", None)
+                if not callable(generate_once):
+                    generate_once = getattr(self.client, "generate_json_once", None)
                 if callable(generate_once):
-                    payload = generate_once(prompt, model=model_id, temperature=1.05)
+                    payload = generate_once(prompt, model=model_id, temperature=WRITER_TEMPERATURE)
                 else:
-                    payload = self.client.generate_json(prompt, model=model_id, temperature=1.05)
+                    payload = self.client.generate_json(prompt, model=model_id, temperature=WRITER_TEMPERATURE)
                 note = deliberate_refuse_note(payload)
                 if note is not None:
                     return {"refuse": True, "note": note or DEFAULT_VETO_NOTE}

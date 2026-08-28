@@ -266,3 +266,43 @@ def test_generate_json_once_empty_response_raises():
     client = _client_with_generate(generate_content)
     with pytest.raises(RuntimeError, match="empty writer response"):
         GeminiClient.generate_json_once(client, "prompt", model="writer-one")
+
+
+def test_writer_call_uses_scene_or_veto_schema_and_supported_temperature():
+    captured = {}
+
+    def generate_content(model, contents, config=None):
+        captured["model"] = model
+        captured["config"] = config
+        return SimpleNamespace(text='{"result": {"refuse": true, "note": "Not this topic."}}', candidates=None)
+
+    client = _client_with_generate(generate_content)
+    out = GeminiClient.generate_writer_json_once(client, "prompt", model="writer-one")
+    assert out["refuse"] is True
+    assert captured["model"] == "writer-one"
+    assert 0.0 <= captured["config"]["temperature"] <= 1.0
+    schema = captured["config"]["response_json_schema"]
+    choices = schema["properties"]["result"]["anyOf"]
+    assert len(choices) == 2
+    assert choices[0]["properties"]["beats"]["minItems"] == 4
+    assert choices[1]["required"] == ["refuse", "note"]
+    assert "minLength" not in json.dumps(schema)
+    assert "maxLength" not in json.dumps(schema)
+
+
+def test_writer_prefers_schema_constrained_method(monkeypatch):
+    monkeypatch.setenv("GEMINI_MODELS", "writer-one")
+    calls = []
+
+    class Fake:
+        def generate_writer_json_once(self, prompt, model, temperature=0.9):
+            calls.append(("structured", model, temperature))
+            return _valid_scene()
+
+        def generate_json_once(self, prompt, model, temperature=0.9):
+            calls.append(("generic", model, temperature))
+            return _valid_scene()
+
+    out = GeminiWriter(Fake()).write_scene("", {}, {}, "a normal topic", source="viewer")
+    assert out["scene"] == "living_room"
+    assert calls == [("structured", "writer-one", 0.95)]

@@ -320,6 +320,11 @@ def test_private_showing_spends_without_public_queue(monkeypatch, tmp_path):
     assert snap.get("private") is True
     assert captured.get("air") is False
     assert snap.get("packet") and snap["packet"].get("beats")
+    handoff = client.get("/episode/private-packet", params={"job_id": body["job_id"]})
+    assert handoff.status_code == 200
+    assert handoff.headers["cache-control"] == "no-store"
+    assert handoff.json()["episode_id"] == snap["packet"]["episode_id"]
+    assert handoff.json().get("private") is True
     acc = client.get("/account").json()
     assert acc["credits"] == 0
     q = client.get("/queue").json()
@@ -332,6 +337,8 @@ def test_private_showing_spends_without_public_queue(monkeypatch, tmp_path):
     stranger.cookies.set("sb_buyer", sign_buyer("somebodyElse"))
     hidden = stranger.get("/episode/status", params={"job_id": body["job_id"]})
     assert hidden.status_code == 404
+    hidden_packet = stranger.get("/episode/private-packet", params={"job_id": body["job_id"]})
+    assert hidden_packet.status_code == 404
 
 
 def test_concurrent_private_jobs_do_not_block_each_other(monkeypatch, tmp_path):
@@ -379,6 +386,8 @@ def test_concurrent_private_jobs_do_not_block_each_other(monkeypatch, tmp_path):
         json={"topic": "What if the fridge files a brief", "username": "Rook", "private_showing": True},
     )
     assert r1.status_code == 200 and r2.status_code == 200
+    pending = client_a.get("/episode/private-packet", params={"job_id": r1.json()["job_id"]})
+    assert pending.status_code == 409
     deadline = time.time() + 2.5
     while len(started) < 2 and time.time() < deadline:
         time.sleep(0.02)

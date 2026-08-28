@@ -30,6 +30,19 @@ from orchestrator.writer_cascade import DEFAULT_VETO_NOTE
 def register_episode(app):
     import web.app as m
 
+    def _private_job_for_viewer(request: Request, job_id: str) -> dict:
+        """Return a private job only to the browser that created it."""
+        with m._jobs_lock:
+            stored = dict(m._jobs.get(job_id) or {})
+        if not stored.get("private"):
+            raise HTTPException(status_code=404, detail="unknown job")
+        viewer = m.verify_buyer(request.cookies.get(m.BUYER_COOKIE)) or ""
+        owner = str(stored.get("buyer_id") or "")
+        if not viewer or not owner or not hmac.compare_digest(viewer, owner):
+            # Do not reveal whether another buyer's private packet exists.
+            raise HTTPException(status_code=404, detail="unknown job")
+        return stored
+
     @app.post("/episode")
     async def post_episode(
         request: Request,
@@ -224,15 +237,26 @@ def register_episode(app):
         with m._jobs_lock:
             stored = dict(m._jobs.get(jid) or {})
         if stored.get("private"):
-            viewer = m.verify_buyer(request.cookies.get(m.BUYER_COOKIE)) or ""
-            owner = str(stored.get("buyer_id") or "")
-            if not viewer or not owner or not hmac.compare_digest(viewer, owner):
-                # Do not reveal whether another buyer's private packet exists.
-                raise HTTPException(status_code=404, detail="unknown job")
+            _private_job_for_viewer(request, jid)
         snap = m._job_snapshot(jid)
         if not snap:
             raise HTTPException(status_code=404, detail="unknown job")
         return snap
+
+    @app.get("/episode/private-packet")
+    def private_episode_packet(request: Request, job_id: str) -> Response:
+        """Hand one ready private episode to its buyer's player without touching broadcast state."""
+        stored = _private_job_for_viewer(request, job_id)
+        status = str(stored.get("status") or "running")
+        if status == "ready" and isinstance(stored.get("packet"), dict):
+            return Response(
+                content=json.dumps(stored["packet"]),
+                media_type="application/json",
+                headers={"Cache-Control": "no-store"},
+            )
+        if status in {"error", "refused", "rejected"}:
+            raise HTTPException(status_code=410, detail="private showing did not complete")
+        raise HTTPException(status_code=409, detail="private showing is not ready")
 
     @app.get("/queue")
     def queue_board() -> dict:

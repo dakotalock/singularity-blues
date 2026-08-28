@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 from pathlib import Path
 from typing import Any
@@ -13,6 +14,9 @@ from orchestrator.moderation import episode_title, wrap_untrusted
 from orchestrator.schemas import validate_scene
 
 DEFAULT_VETO_NOTE = "The topic was moderated by the AI."
+WRITER_TEMPERATURE = 0.95
+
+logger = logging.getLogger(__name__)
 
 _INFRA_REFUSE = re.compile(
     r"(?i)\b(json|jsondecodeerror|timeout|timed out|http\s*[45]\d\d|exception|traceback|"
@@ -38,8 +42,16 @@ def deliberate_refuse_note(payload: Any) -> str | None:
     return note
 
 
-def invoke_one_writer_model(client: Any, prompt: str, model_id: str, temperature: float = 1.05) -> Any:
+def invoke_one_writer_model(
+    client: Any,
+    prompt: str,
+    model_id: str,
+    temperature: float = WRITER_TEMPERATURE,
+) -> Any:
     """Exactly one model. Never the client-level cascade — schema belongs to the writer loop."""
+    generate_writer_once = getattr(client, "generate_writer_json_once", None)
+    if callable(generate_writer_once):
+        return generate_writer_once(prompt, model=model_id, temperature=temperature)
     generate_once = getattr(client, "generate_json_once", None)
     if callable(generate_once):
         return generate_once(prompt, model=model_id, temperature=temperature)
@@ -53,31 +65,52 @@ def _read(path: Path) -> str:
     return path.read_text(encoding="utf-8") if path.is_file() else ""
 
 
-def patched_generate_json_once(self, prompt: str, *, model: str, temperature: float = 0.9) -> dict[str, Any]:
-    """Call exactly one model. Empty/non-object responses are errors, not refuses."""
-    from orchestrator.gemini import parse_json_text
+def writer_response_schema() -> dict[str, Any]:
+    """Gemini-compatible response containing a complete scene or an intentional veto."""
+    scene = json.loads(_read(SCENE_SCHEMA_PATH))
 
-    resp = self.client.models.generate_content(
-        model=model,
-        contents=prompt,
-        config=self._types.GenerateContentConfig(
-            temperature=temperature,
-            response_mime_type="application/json",
-        ),
-    )
-    text = getattr(resp, "text", None) or ""
-    if not text and getattr(resp, "candidates", None):
-        try:
-            text = resp.candidates[0].content.parts[0].text
-        except Exception:
-            text = ""
-    blob = (text or "").strip()
-    if not blob:
-        raise RuntimeError("empty writer response")
-    payload = parse_json_text(blob)
-    if not isinstance(payload, dict):
-        raise TypeError("writer response was not a JSON object")
-    return payload
+    def supported(node: Any) -> Any:
+        if isinstance(node, dict):
+            # Gemini structured output supports a JSON Schema subset. Length
+            # limits remain enforced by Pydantic after generation.
+            return {
+                key: supported(value)
+                for key, value in node.items()
+                if key not in {"$schema", "minLength", "maxLength"}
+            }
+        if isinstance(node, list):
+            return [supported(value) for value in node]
+        return node
+
+    scene = supported(scene)
+    line = (((scene.get("properties") or {}).get("beats") or {}).get("items") or {}).get("properties", {}).get("line")
+    if isinstance(line, dict):
+        line["description"] = "One concise spoken beat, no more than 280 characters."
+    refusal = {
+        "title": "TopicVeto",
+        "type": "object",
+        "required": ["refuse", "note"],
+        "properties": {
+            "refuse": {
+                "type": "boolean",
+                "description": "Always true. Use this object only for a genuine topic veto.",
+            },
+            "note": {
+                "type": "string",
+                "description": "A short viewer-facing reason with no model names or prompt quotes.",
+            },
+        },
+        "additionalProperties": False,
+    }
+    # Google's documented conditional-output shape nests ``anyOf`` under a
+    # required object property. The client unwraps ``result`` before the rest of
+    # the application sees it.
+    return {
+        "type": "object",
+        "required": ["result"],
+        "properties": {"result": {"anyOf": [scene, refusal]}},
+        "additionalProperties": False,
+    }
 
 
 def patched_write_scene(
@@ -149,7 +182,7 @@ def patched_write_scene(
     failures: list[Exception] = []
     for model_id in models:
         try:
-            payload = invoke_one_writer_model(self.client, prompt, model_id, 1.05)
+            payload = invoke_one_writer_model(self.client, prompt, model_id, WRITER_TEMPERATURE)
             note = deliberate_refuse_note(payload)
             if note is not None:
                 return {"refuse": True, "note": note}
@@ -162,6 +195,7 @@ def patched_write_scene(
             return validate_scene(payload).model_dump()
         except Exception as exc:
             failures.append(exc)
+            logger.warning("writer attempt failed for %s: %s: %s", model_id, type(exc).__name__, exc)
             continue
 
     if failures:
@@ -181,6 +215,5 @@ def install() -> None:
 
     gemini.deliberate_refuse_note = deliberate_refuse_note
     gemini.invoke_one_writer_model = invoke_one_writer_model
-    gemini.GeminiClient.generate_json_once = patched_generate_json_once
     gemini.GeminiWriter.write_scene = patched_write_scene
     _installed = True

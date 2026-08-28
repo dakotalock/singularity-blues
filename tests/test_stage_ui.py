@@ -97,3 +97,8 @@ def test_private_showing_copy_and_control():
     assert "max-height: min(52dvh, 520px)" in html
     assert "body.broadcast #player-controls" in html
     assert "private_showing" in js
+    assert "/episode/private-packet?job_id=" in js
+    assert "isPlayerPoll" in js
+    assert "privateJobs" in js
+    assert "new Response(" not in js
+    assert "privateOverride" not in js
