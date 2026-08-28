@@ -116,8 +116,8 @@ def _read(path: Path) -> str:
 def parse_json_text(text: str) -> dict[str, Any]:
     blob = (text or "").strip()
     if blob.startswith("```"):
-        blob = re.sub(r"^```(?:json)?\s*", "", blob)
-        blob = re.sub(r"\s*```$", "", blob)
+        blob = re.sub(r"^```(?:json)?\\s*", "", blob)
+        blob = re.sub(r"\\s*```$", "", blob)
     return json.loads(blob)
 
 
@@ -146,6 +146,7 @@ def _mock_scene_for_topic(topic: str) -> str:
 
 
 GEMINI_MODELS = ["gemini-3.7-flash", "gemini-3.6-flash", "gemini-2.5-flash"]
+GEMMA_MODELS = ["gemma-4-31b-it", "gemma-4-26b-a4b-it"]
 TEST_REFUSE_SENTINEL = "__TEST_REFUSE__"
 
 
@@ -171,6 +172,41 @@ def model_cascade(preferred: str | None = None) -> list[str]:
         if mid not in order:
             order.append(mid)
     return order
+
+
+def gemma_models() -> list[str]:
+    raw = os.environ.get("GEMMA_MODELS", "").strip()
+    if raw:
+        return [m.strip() for m in raw.split(",") if m.strip()]
+    return list(GEMMA_MODELS)
+
+
+def writer_model_cascade(preferred: str | None = None) -> list[str]:
+    """Gemini first. Gemma 4 is a separate-quota last resort, not another Gemini twin."""
+    order = model_cascade(preferred)
+    if any(str(mid).startswith("gemini-") for mid in order):
+        for mid in gemma_models():
+            if mid not in order:
+                order.append(mid)
+    return order
+
+
+def is_rate_limit_error(exc: BaseException) -> bool:
+    blob = f"{type(exc).__name__} {exc}".lower()
+    return any(
+        token in blob
+        for token in (
+            "429",
+            "resource_exhausted",
+            "rate-limit",
+            "rate limit",
+            "exceeded your current quota",
+        )
+    )
+
+
+def is_gemma_model(model_id: str) -> bool:
+    return str(model_id).lower().startswith("gemma-")
 
 
 from orchestrator.gemini_mock import MockWriter, Writer
