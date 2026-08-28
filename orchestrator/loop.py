@@ -19,6 +19,7 @@ from orchestrator.playlist import absorb as playlist_absorb
 from orchestrator.playlist import pin as playlist_pin
 from orchestrator.voice_queue import HIGH, voice_episode
 
+from orchestrator.writer_cascade import DEFAULT_VETO_NOTE
 from orchestrator.writer_cascade import install as _install_writer_cascade
 
 _install_writer_cascade()
@@ -106,7 +107,7 @@ def run_episode(
         title=heading,
     )
     if isinstance(scene, dict) and scene.get("refuse"):
-        raise PromptRefused(scene.get("note") or "")
+        raise PromptRefused(scene.get("note") or DEFAULT_VETO_NOTE)
     scene = finalize_scene(scene, title=heading, source=source, username=username, paid=paid)
 
     episode_id = mem.insert_episode(heading, scene.get("source") or source, scene)
