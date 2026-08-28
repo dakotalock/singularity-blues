@@ -1,1 +1,226 @@
-SEE_FILE_/tmp/mcp-args-xmlsafe.json
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+		<title>The Singularity Blues</title>
+		<style>
+html, body {
+	margin: 0;
+	padding: 0;
+	border: 0;
+	height: 100%;
+}
+
+body {
+	display: flex;
+	flex-direction: column;
+	color: white;
+	background-color: black;
+	overflow: hidden;
+	touch-action: pan-y;
+}
+
+#player-shell {
+	position: relative;
+	display: flex;
+	flex: 1 1 auto;
+	min-height: 0;
+	width: 100%;
+	background: #000;
+	overflow: hidden;
+	touch-action: none;
+}
+
+#canvas {
+	margin: 0;
+	padding: 0;
+	border: 0;
+	display: block;
+	flex: 1 1 auto;
+	min-height: 0;
+	width: 100%;
+}
+
+#canvas:focus {
+	outline: none;
+}
+
+#status, #status-splash, #status-progress {
+	position: absolute;
+	left: 0;
+	right: 0;
+}
+
+#status, #status-splash {
+	top: 0;
+	bottom: 0;
+}
+
+#status {
+	background-color: #242424;
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	align-items: center;
+	visibility: hidden;
+	z-index: 40;
+}
+
+#status-splash {
+	max-height: 100%;
+	max-width: 100%;
+	margin: auto;
+}
+
+#status-splash.show-image--false {
+	display: none;
+}
+
+#status-splash.fullsize--true {
+	height: 100%;
+	width: 100%;
+	object-fit: contain;
+}
+
+#status-splash.use-filter--false {
+	image-rendering: pixelated;
+}
+
+#status-progress, #status-notice {
+	display: none;
+}
+
+#status-progress {
+	bottom: 10%;
+	width: 50%;
+	margin: 0 auto;
+}
+
+#status-notice {
+	background-color: #5b3943;
+	border-radius: 0.5rem;
+	border: 1px solid #9b3943;
+	color: #e0e0e0;
+	font-family: 'Noto Sans', 'Droid Sans', Arial, sans-serif;
+	line-height: 1.3;
+	margin: 0 2rem;
+	overflow: hidden;
+	padding: 1rem;
+	text-align: center;
+	z-index: 1;
+}
+
+#sitcom-chrome {
+	flex: 0 0 auto;
+	position: relative;
+	z-index: 30;
+	box-sizing: border-box;
+	max-height: min(52dvh, 520px);
+	overflow-x: hidden;
+	overflow-y: auto;
+	overscroll-behavior-y: contain;
+	touch-action: pan-y;
+	-webkit-overflow-scrolling: touch;
+	scrollbar-color: #52617b #121824;
+	scrollbar-width: thin;
+	background:
+		linear-gradient(180deg, rgba(23, 30, 43, .98), rgba(13, 18, 28, .98));
+	border-bottom: 1px solid rgba(199, 176, 128, .22);
+	box-shadow: 0 14px 36px rgba(0, 0, 0, .38);
+	color: #f4f0e8;
+	font: 14px/1.4 Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+#sitcom-chrome::-webkit-scrollbar { width: 6px; }
+#sitcom-chrome::-webkit-scrollbar-track { background: #121824; }
+#sitcom-chrome::-webkit-scrollbar-thumb {
+	background: #52617b;
+	border-radius: 999px;
+}
+
+#sitcom-chrome-inner {
+	box-sizing: border-box;
+	width: min(100%, 1120px);
+	margin: 0 auto;
+	padding-top: max(12px, env(safe-area-inset-top, 0px));
+	padding-right: max(16px, env(safe-area-inset-right, 0px));
+	padding-bottom: 16px;
+	padding-left: max(16px, env(safe-area-inset-left, 0px));
+}
+
+body.broadcast #sitcom-chrome {
+	display: none;
+}
+
+body.broadcast #player-controls {
+	display: none;
+}
+
+#player-controls {
+	position: absolute;
+	z-index: 35;
+	top: auto;
+	left: auto;
+	bottom: max(12px, env(safe-area-inset-bottom, 0px));
+	right: max(12px, env(safe-area-inset-right, 0px));
+	display: flex;
+	gap: 6px;
+	align-items: center;
+	font: 600 16px/1 ui-sans-serif, system-ui, sans-serif;
+	pointer-events: auto;
+}
+
+.player-control {
+	appearance: none;
+	box-sizing: border-box;
+	width: 36px;
+	height: 36px;
+	padding: 8px;
+	border: 1px solid rgba(255,255,255,.28);
+	border-radius: 50%;
+	background: rgba(10,15,28,.88);
+	color: #eef5ff;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 16px;
+	line-height: 1;
+	box-shadow: 0 5px 18px rgba(0,0,0,.35);
+	cursor: pointer;
+	backdrop-filter: blur(8px);
+}
+
+#sitcom-volume[data-state="muted"] {
+	background: rgba(112,35,38,.94);
+	border-color: rgba(255,137,137,.85);
+}
+
+#sitcom-volume[data-state="on"] {
+	background: rgba(24,88,61,.94);
+	border-color: rgba(125,255,179,.72);
+}
+
+#player-shell:fullscreen,
+#player-shell:-webkit-full-screen {
+	width: 100vw;
+	height: 100vh;
+	background: #000;
+}
+
+body.player-expanded #sitcom-chrome { display: none; }
+body.player-expanded #player-shell {
+	position: fixed;
+	inset: 0;
+	z-index: 1000;
+	width: 100vw;
+	height: 100dvh;
+}
+
+@media (max-width: 640px) {
+	#player-controls {
+		bottom: max(12px, env(safe-area-inset-bottom, 0px));
+		right: max(16px, env(safe-area-inset-right, 0px));
+		gap: 6px;
+	}
+}
