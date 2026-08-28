@@ -144,8 +144,8 @@ def _coerce_json_object(payload: Any, *, depth: int = 0) -> Any:
         if not inner:
             return payload
         if inner.startswith("```"):
-            inner = re.sub(r"^```(?:json)?\\s*", "", inner, flags=re.I)
-            inner = re.sub(r"\\s*```$", "", inner)
+            inner = re.sub(r"^```(?:json)?\s*", "", inner, flags=re.I)
+            inner = re.sub(r"\s*```$", "", inner)
         try:
             decoded = _loads_jsonish(inner)
         except json.JSONDecodeError:
@@ -173,8 +173,8 @@ def _coerce_json_object(payload: Any, *, depth: int = 0) -> Any:
 def parse_json_text(text: str) -> dict[str, Any]:
     blob = (text or "").strip()
     if blob.startswith("```"):
-        blob = re.sub(r"^```(?:json)?\\s*", "", blob, flags=re.I)
-        blob = re.sub(r"\\s*```$", "", blob)
+        blob = re.sub(r"^```(?:json)?\s*", "", blob, flags=re.I)
+        blob = re.sub(r"\s*```$", "", blob)
     payload = _coerce_json_object(_loads_jsonish(blob))
     if not isinstance(payload, dict):
         raise TypeError("response was not a JSON object")
