@@ -24,6 +24,19 @@ def _decode_joined(paths: list[Path]) -> bytes:
     return b"".join(base64.b64decode(p.read_text().encode("ascii")) for p in paths)
 
 
+def _write_stage_index() -> None:
+    dest = STAGE / "index.html"
+    chunks = sorted(PARTS.glob("stage-index.part-*.b64"))
+    if not chunks:
+        print("no stage-index parts; skip")
+        return
+    html = _decode_joined(chunks)
+    if len(html) < 30000 or b'"index.pck":130512' not in html:
+        raise RuntimeError(f"stage-index assemble too small or missing pck: {len(html)}")
+    dest.write_bytes(html)
+    print("wrote", dest, dest.stat().st_size)
+
+
 def _write_pck() -> None:
     dest = STAGE / "index.pck"
     if dest.is_file() and dest.stat().st_size > 1000:
@@ -154,6 +167,7 @@ def _expose_audio() -> None:
 def main() -> None:
     STAGE.mkdir(parents=True, exist_ok=True)
     PARTS.mkdir(parents=True, exist_ok=True)
+    _write_stage_index()
     _write_pck()
     dest = STAGE / "index.wasm"
     if dest.is_file() and dest.stat().st_size > 1_000_000:
