@@ -72,6 +72,8 @@ class GeminiClient:
         temperature: float = WRITER_TEMPERATURE,
     ) -> dict[str, Any]:
         """Call one writer with a scene-or-veto schema so malformed JSON cannot look like a veto."""
+        if str(model).lower().startswith("gemma-"):
+            return self.generate_json_once(prompt, model=model, temperature=temperature)
         resp = self.client.models.generate_content(
             model=model,
             contents=prompt,
