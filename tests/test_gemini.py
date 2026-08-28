@@ -306,3 +306,38 @@ def test_writer_prefers_schema_constrained_method(monkeypatch):
     out = GeminiWriter(Fake()).write_scene("", {}, {}, "a normal topic", source="viewer")
     assert out["scene"] == "living_room"
     assert calls == [("structured", "writer-one", 0.95)]
+
+
+def test_writer_model_cascade_appends_gemma4_after_gemini(monkeypatch):
+    monkeypatch.setenv("GEMINI_MODELS", "gemini-3.7-flash,gemini-2.5-flash")
+    monkeypatch.delenv("GEMMA_MODELS", raising=False)
+    from orchestrator.gemini import writer_model_cascade
+    assert writer_model_cascade() == [
+        "gemini-3.7-flash",
+        "gemini-2.5-flash",
+        "gemma-4-31b-it",
+        "gemma-4-26b-a4b-it",
+    ]
+
+
+def test_writer_skips_remaining_gemini_on_429_and_uses_gemma(monkeypatch):
+    monkeypatch.setenv("GEMINI_MODELS", "gemini-3.7-flash,gemini-3.6-flash")
+    monkeypatch.setenv("GEMMA_MODELS", "gemma-4-31b-it")
+    calls = []
+
+    class Fake:
+        def generate_writer_json_once(self, prompt, model, temperature=0.9):
+            calls.append(("structured", model))
+            if str(model).startswith("gemini-"):
+                raise RuntimeError("429 RESOURCE_EXHAUSTED")
+            raise AssertionError("Gemma should not use the Gemini JSON schema path")
+
+        def generate_json_once(self, prompt, model, temperature=0.9):
+            calls.append(("plain", model))
+            return _valid_scene()
+
+    out = GeminiWriter(Fake()).write_scene("", {}, {}, "a difficult prompt", source="viewer")
+    assert ("structured", "gemini-3.7-flash") in calls
+    assert ("structured", "gemini-3.6-flash") not in calls
+    assert ("plain", "gemma-4-31b-it") in calls
+    assert out["scene"] == "living_room"
