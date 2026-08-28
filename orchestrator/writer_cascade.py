@@ -49,6 +49,15 @@ def invoke_one_writer_model(
     temperature: float = WRITER_TEMPERATURE,
 ) -> Any:
     """Exactly one model. Never the client-level cascade — schema belongs to the writer loop."""
+    # Gemma 4 on this API does not take the Gemini scene-or-veto JSON schema.
+    if str(model_id).lower().startswith("gemma-"):
+        generate_once = getattr(client, "generate_json_once", None)
+        if callable(generate_once):
+            return generate_once(prompt, model=model_id, temperature=temperature)
+        generate = getattr(client, "generate_json", None)
+        if callable(generate):
+            return generate(prompt, model=model_id, temperature=temperature)
+        raise RuntimeError("writer client cannot generate")
     generate_writer_once = getattr(client, "generate_writer_json_once", None)
     if callable(generate_writer_once):
         return generate_writer_once(prompt, model=model_id, temperature=temperature)
@@ -126,7 +135,7 @@ def patched_write_scene(
     refuse_reason: str | None = None,
     title: str | None = None,
 ) -> dict[str, Any]:
-    from orchestrator.gemini import WriterCascadeError, model_cascade
+    from orchestrator.gemini import WriterCascadeError, is_rate_limit_error, writer_model_cascade
 
     schema = _read(SCENE_SCHEMA_PATH)
     writer_rules = _read(WRITER_PROMPT_PATH)
@@ -178,9 +187,13 @@ def patched_write_scene(
         + wrap_untrusted("VIEWER_TOPIC", {"topic": topic, "claimed_source": source, "title": heading})
         + "\nOutput ONLY valid scene JSON. Use a refuse object only for a genuine topic veto.\n"
     )
-    models = model_cascade()
+    models = writer_model_cascade()
     failures: list[Exception] = []
+    gemini_rate_limited = False
     for model_id in models:
+        if gemini_rate_limited and str(model_id).startswith("gemini-"):
+            logger.warning("skipping %s after Gemini quota; trying a separate-quota model", model_id)
+            continue
         try:
             payload = invoke_one_writer_model(self.client, prompt, model_id, WRITER_TEMPERATURE)
             note = deliberate_refuse_note(payload)
@@ -196,6 +209,8 @@ def patched_write_scene(
         except Exception as exc:
             failures.append(exc)
             logger.warning("writer attempt failed for %s: %s: %s", model_id, type(exc).__name__, exc)
+            if is_rate_limit_error(exc) and str(model_id).startswith("gemini-"):
+                gemini_rate_limited = True
             continue
 
     if failures:
