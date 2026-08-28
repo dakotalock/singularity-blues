@@ -4,12 +4,20 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import sys
 import time
 from typing import Any
 
 from orchestrator import DATA_DIR, NOW_PLAYING_PATH, ROOT, load_dotenv
-from orchestrator.gemini import PromptRefused, finalize_scene, get_condenser, get_writer, load_bible
+from orchestrator.gemini import (
+    MockCondenser,
+    PromptRefused,
+    finalize_scene,
+    get_condenser,
+    get_writer,
+    load_bible,
+)
 from orchestrator.memory import Memory
 from orchestrator.moderation import episode_title, prefilter, scrub_slurs
 from orchestrator.schemas import validate_scene
@@ -24,6 +32,8 @@ from orchestrator.writer_cascade import install as _install_writer_cascade
 
 _install_writer_cascade()
 
+logger = logging.getLogger(__name__)
+
 
 def _context(mem: Memory) -> dict[str, Any]:
     retrieved = mem.retrieve("household", limit=8)
@@ -33,6 +43,23 @@ def _context(mem: Memory) -> dict[str, Any]:
         "running_gags": retrieved.get("running_gags") or [],
         "recent_prompt_texts": mem.recent_prompt_texts(),
     }
+
+
+def _remember_episode(mem: Memory, scene: dict[str, Any], episode_id: int) -> None:
+    """Commit memory without letting malformed condenser JSON kill a voiced episode.
+
+    The creative writer and the memory condenser are separate model calls. Once the
+    scene has passed writer validation and Piper has produced its audio, a bad
+    condenser response is aftercare—not a failed paid prompt. The deterministic
+    condenser keeps the episode in memory even when every remote condenser model
+    returns malformed JSON or an API error.
+    """
+    try:
+        condensation = get_condenser().condense(scene)
+    except Exception as exc:
+        logger.warning("remote condenser failed for episode %s; using local fallback: %s", episode_id, exc)
+        condensation = MockCondenser().condense(scene)
+    mem.commit(condensation, episode_id=episode_id)
 
 
 def run_episode(
@@ -118,9 +145,7 @@ def run_episode(
         progress=progress,
         source=scene.get("source") or source,
     )
-    condenser = get_condenser()
-    condensation = condenser.condense(scene)
-    mem.commit(condensation, episode_id=episode_id)
+    _remember_episode(mem, scene, episode_id)
     if ltm_pin:
         mem.pin_episode(episode_id)
 

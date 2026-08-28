@@ -40,3 +40,37 @@ def test_voice_queue_serializes_jobs(monkeypatch):
     assert errors == []
     assert 2 <= max_active <= 3
     assert len(results) == 3
+
+
+def test_archive_backfill_cannot_occupy_every_viewer_lane():
+    low_gate = threading.Event()
+    low_started = 0
+    lock = threading.Lock()
+
+    def low_job():
+        nonlocal low_started
+        with lock:
+            low_started += 1
+        low_gate.wait(timeout=3)
+
+    for _ in range(3):
+        voice_queue.submit(voice_queue.LOW, low_job)
+
+    deadline = time.time() + 1.5
+    while time.time() < deadline:
+        with lock:
+            if low_started:
+                break
+        time.sleep(0.01)
+    with lock:
+        assert low_started == 1
+
+    high_done = [threading.Event(), threading.Event()]
+    for event in high_done:
+        voice_queue.submit(voice_queue.HIGH, event.set)
+    assert all(event.wait(timeout=1.5) for event in high_done)
+    with lock:
+        assert low_started == 1
+
+    low_gate.set()
+    voice_queue._low_jobs.join()

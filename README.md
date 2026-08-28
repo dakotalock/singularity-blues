@@ -32,7 +32,7 @@ cp .env.example .env
 
 Models (when a key is present): cascade `gemini-3.7-flash`, `gemini-3.6-flash`, `gemini-2.5-flash`. Override with `GEMINI_MODELS` (comma-separated). Do not pin via `GEMINI_WRITER_MODEL` / `GEMINI_MODEL`.
 
-The writer tries the cascade one model at a time. API/JSON/schema failures and refusals advance to the next model; a refusal is accepted only when every configured writer refuses. A paid prompt is refunded only after the complete cascade fails or refuses.
+The writer tries the cascade one model at a time. API, malformed JSON, and schema failures advance to the next model. A deliberate refusal is an immediate creative veto; the prompt credit and pin are restored. If all three writers fail technically, the credit and pin are also restored. Condenser JSON is separate from writing: a malformed memory summary falls back to deterministic local condensation and cannot invalidate an already voiced episode.
 
 ## Env vars
 
@@ -50,6 +50,9 @@ The writer tries the cascade one model at a time. API/JSON/schema failures and r
 | `STRIPE_PRICE_20` | `price_1U8uTHP7GC34loHeN1Goa4MJ` — $20 / 30 credits + 3 LTM pins |
 | `OWNER_PROMPT_SECRET` | Dakota unlimited via `X-Owner-Secret` or the unadvertised `/unlock` cookie. Never hardcode it. |
 | `PUBLIC_BASE_URL` | `https://singularity-blues.onrender.com` in production. Checkout success/cancel URLs. |
+| `PRIVATE_SHOWING_WORKERS` | Concurrent private writer jobs. Default 8, clamped 1–32. |
+| `PIPER_WORKERS` | Concurrent episode-level voice jobs. Default 3, clamped 2–3. |
+| `PIPER_MAX_PROCESSES` | Total simultaneous beat synthesis processes. Default 3, clamped 1–4. |
 
 Price ids are public Stripe objects, not secrets. Do not put `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, or `OWNER_PROMPT_SECRET` in git.
 
@@ -62,7 +65,9 @@ Hosted Stripe Checkout Sessions (`POST /checkout`, webhook `POST /stripe/webhook
 - $10 → 12 credits + 1 LTM pin
 - $20 → 30 credits + 3 LTM pins
 
-`POST /episode` spends 1 credit. Hard-rejects (injection, scream-spam, garbage, CSAM-adjacent, too short) refund **the credit**, never Stripe money. Writer errors and refusals first try all three configured writers; only an exhausted cascade refunds the credit and pin. Buyer identity is a signed cookie.
+`POST /episode` spends 1 credit. Hard-rejects (injection, scream-spam, garbage, CSAM-adjacent, too short) refund **the credit**, never Stripe money. Technical writer errors try all three configured models. A deliberate AI veto stops immediately and refunds the credit and pin. Buyer identity is a signed cookie.
+
+Private Showing uses a separate bounded writer pool and never enters the public air queue. The browser keeps playing reruns while its episode is written and voiced, then plays that packet only for the buyer who created it. The episode is still added to the rerun library and long-term memory. Private status packets are bound to the buyer's signed cookie. Piper synthesizes independent dialogue beats in parallel under a global process cap; only one voice worker accepts archive backfill, leaving the other lanes available for viewer episodes.
 
 The performance schema includes five sets, twenty-five facial emotions, and twenty-nine body animations. The upbeat range includes excited, playful, proud, hopeful, delighted, affectionate, laughing, giggling, applause, happy dances, high fives, and victory poses. The writer is expected to choose purposeful reactions and movement rather than leaving every beat on the generic talking pose.
 

@@ -11,6 +11,7 @@ import sys
 import threading
 import time
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 from pathlib import Path
 
@@ -79,6 +80,26 @@ _jobs_lock = threading.Lock()
 _job_order: list[str] = []
 _latest_job = ""
 ESTIMATE_SEC = 90.0
+JOB_RETENTION_SEC = 6 * 3600
+MAX_RETAINED_JOBS = 2000
+
+
+def _worker_setting(name: str, default: int, maximum: int) -> int:
+    try:
+        value = int((os.environ.get(name) or str(default)).strip())
+    except ValueError:
+        value = default
+    return max(1, min(maximum, value))
+
+
+# Public prompts retain their single on-air ordering lane. Private showings have a
+# separate bounded pool, so public traffic cannot make them wait behind the shared
+# queue and a traffic spike cannot create an unbounded number of OS threads.
+_public_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="episode-public")
+_private_executor = ThreadPoolExecutor(
+    max_workers=_worker_setting("PRIVATE_SHOWING_WORKERS", 8, 32),
+    thread_name_prefix="episode-private",
+)
 
 
 def get_mem() -> Memory:
@@ -118,6 +139,31 @@ def _airing_topic() -> str:
         return str(pkt.get("topic") or "").strip()
     except Exception:
         return ""
+
+
+def _prune_jobs_locked(now: float | None = None) -> None:
+    """Bound 24/7 job metadata while retaining recent status/packet polling."""
+    stamp = time.time() if now is None else float(now)
+    terminal = {"ready", "error", "rejected", "refused"}
+    expired = [
+        jid
+        for jid, job in _jobs.items()
+        if job.get("status") in terminal
+        and stamp - float(job.get("finished_at") or job.get("created_at") or stamp) > JOB_RETENTION_SEC
+    ]
+    for jid in expired:
+        _jobs.pop(jid, None)
+    if len(_jobs) > MAX_RETAINED_JOBS:
+        finished = sorted(
+            (
+                (float(job.get("finished_at") or job.get("created_at") or stamp), jid)
+                for jid, job in _jobs.items()
+                if job.get("status") in terminal
+            )
+        )
+        for _finished_at, jid in finished[: max(0, len(_jobs) - MAX_RETAINED_JOBS)]:
+            _jobs.pop(jid, None)
+    _job_order[:] = [jid for jid in _job_order if jid in _jobs]
 
 
 def _safe_refuse_note(note: str | None) -> str:
@@ -162,7 +208,7 @@ def _eta_for_job(job_id: str) -> dict:
         if job.get("status") == "ready":
             return {
                 "eta_seconds": 0,
-                "eta_copy": "Playing for you. Also saved to the library and memory.",
+                "eta_copy": "Ready for you after this rerun. Also saved to the library and memory.",
                 "position": 0,
                 "current_topic": airing,
                 "private": True,
@@ -212,6 +258,7 @@ def _job_snapshot(job_id: str) -> dict:
         job = dict(_jobs.get(job_id) or {})
     if not job.get("private"):
         job.pop("packet", None)
+    job.pop("buyer_id", None)
     if not job:
         return job
     job.update(_eta_for_job(job_id))
@@ -234,8 +281,9 @@ def _viewer_private_packet(packet: dict) -> dict:
 
 
 def _spawn_job(fn, *, concurrent: bool = False) -> None:
-    """Return immediately. Private showings skip the public air lock and run on their own threads."""
-    threading.Thread(target=fn, daemon=True, name="private-showing" if concurrent else "episode-job").start()
+    """Return immediately through isolated, bounded public/private worker pools."""
+    executor = _private_executor if concurrent else _public_executor
+    executor.submit(fn)
 
 
 class PromptIn(BaseModel):

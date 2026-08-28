@@ -1,11 +1,21 @@
+import base64
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def test_player_exposes_clear_sound_and_fullscreen_controls():
+def _stage_html() -> str:
+    """Read the deploy artifact, reconstructing its committed chunks in source checkouts."""
     html = (ROOT / "web" / "stage" / "index.html").read_text(encoding="utf-8")
+    if '"index.pck":130512' in html:
+        return html
+    parts = sorted((ROOT / "tools" / "web-engine-parts").glob("stage-index.part-*.b64"))
+    return b"".join(base64.b64decode(path.read_text(encoding="ascii")) for path in parts).decode("utf-8")
+
+
+def test_player_exposes_clear_sound_and_fullscreen_controls():
+    html = _stage_html()
     assert 'id="sitcom-volume"' in html
     assert 'data-state="muted"' in html
     assert 'aria-label="Unmute the show"' in html
@@ -38,7 +48,7 @@ def test_scene_player_has_a_central_interruption_barrier():
 
 
 def test_storage_mentions_recovery_key_and_restore():
-    html = (ROOT / "web" / "stage" / "index.html").read_text(encoding="utf-8")
+    html = _stage_html()
     lowered = html.lower()
     assert "recovery key" in lowered
     assert "restore" in lowered
@@ -50,7 +60,7 @@ def test_storage_mentions_recovery_key_and_restore():
 
 
 def test_mobile_controls_scroll_without_moving_the_player():
-    html = (ROOT / "web" / "stage" / "index.html").read_text(encoding="utf-8")
+    html = _stage_html()
     assert "#sitcom-chrome {" in html
     assert "overflow-y: auto" in html
     assert "touch-action: pan-y" in html
@@ -60,7 +70,7 @@ def test_mobile_controls_scroll_without_moving_the_player():
 
 
 def test_secondary_tools_use_compact_disclosure_panels():
-    html = (ROOT / "web" / "stage" / "index.html").read_text(encoding="utf-8")
+    html = _stage_html()
     for control in ("sitcom-buy-toggle", "sitcom-queue-toggle", "sitcom-storage-toggle"):
         assert f'id="{control}"' in html
     assert "const panelPairs = [" in html
@@ -69,7 +79,7 @@ def test_secondary_tools_use_compact_disclosure_panels():
 
 
 def test_private_showing_copy_and_control():
-    html = (ROOT / "web" / "stage" / "index.html").read_text(encoding="utf-8")
+    html = _stage_html()
     js = (ROOT / "web" / "stage" / "private-showing.js").read_text(encoding="utf-8")
     page = html + js
     assert "Private Showing" in page

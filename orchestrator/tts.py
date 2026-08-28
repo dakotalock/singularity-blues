@@ -8,7 +8,9 @@ import os
 import shutil
 import struct
 import subprocess
+import threading
 import wave
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any
 
@@ -26,6 +28,19 @@ TONE_HZ = {"reed": 180, "maris": 260, "jinx": 420, "quill": 330}
 PITCH_SHIFT = {"reed": 0.86, "maris": 1.04, "jinx": 1.18, "quill": 1.10}
 SAMPLE_RATE = 22050
 MIN_WAV_SEC = 0.2
+
+
+def _piper_workers() -> int:
+    """Global synthesis cap; defaults to the concurrency already used in production."""
+    try:
+        value = int((os.environ.get("PIPER_MAX_PROCESSES") or "3").strip())
+    except ValueError:
+        value = 3
+    return max(1, min(4, value))
+
+
+_PIPER_PARALLELISM = _piper_workers()
+_SYNTHESIS_SLOTS = threading.BoundedSemaphore(_PIPER_PARALLELISM)
 
 
 def _duration_estimate(line: str) -> float:
@@ -254,51 +269,85 @@ def _render_line(speaker: str, line: str, dest: Path, models: dict[str, Path]) -
     return wav_duration_sec(dest)
 
 
-def render(scene: dict[str, Any], episode_id: int, out_dir: Path | None = None, progress=None) -> dict[str, Any]:
-    """Write per-beat wavs and return a Godot now_playing packet (also written to disk)."""
-    tts_dir = Path(out_dir) if out_dir else TTS_DIR
-    tts_dir.mkdir(parents=True, exist_ok=True)
-    models = _available_models()
-    beats_out: list[dict[str, Any]] = []
-    scene_beats = list(scene.get("beats") or [])
-    total = len(scene_beats)
-    for i, beat in enumerate(scene_beats):
-        speaker = str(beat.get("speaker") or "reed").strip().lower() or "reed"
-        line = beat.get("line") or "..."
-        if progress:
-            progress({"phase": "speaking", "beat": i + 1, "beats": total, "speaker": speaker})
-        filename = _wav_name(episode_id, i, speaker, line)
-        dest = tts_dir / filename
+def _render_beat(
+    beat: dict[str, Any],
+    index: int,
+    episode_id: int,
+    tts_dir: Path,
+    models: dict[str, Path],
+) -> tuple[int, dict[str, Any]]:
+    """Render one independent beat. A global gate prevents Piper stampedes."""
+    speaker = str(beat.get("speaker") or "reed").strip().lower() or "reed"
+    line = beat.get("line") or "..."
+    filename = _wav_name(episode_id, index, speaker, line)
+    dest = tts_dir / filename
+    created = False
+    with _SYNTHESIS_SLOTS:
         if _usable_wav(dest):
             duration = wav_duration_sec(dest)
         else:
             if dest.is_file():
                 _safe_unlink(dest)
             duration = _render_line(speaker, line, dest, models)
-            try:
-                from orchestrator import r2
-                r2.put_file(dest)
-            except Exception:
-                pass
-        rel = dest.relative_to(ROOT).as_posix()
-        beats_out.append(
-            {
-                "speaker": speaker,
-                "line": line,
-                "emotion": beat.get("emotion") or "calm",
-                "animation": beat.get("animation") or "talking",
-                "target": beat.get("target"),
-                "camera": beat.get("camera") or "auto",
-                "audio": rel,
-                "duration_sec": round(float(duration), 3),
-            }
-        )
+            created = True
+    if created:
+        try:
+            from orchestrator import r2
+
+            r2.put_file(dest)
+        except Exception:
+            pass
+    rel = dest.relative_to(ROOT).as_posix()
+    return index, {
+        "speaker": speaker,
+        "line": line,
+        "emotion": beat.get("emotion") or "calm",
+        "animation": beat.get("animation") or "talking",
+        "target": beat.get("target"),
+        "camera": beat.get("camera") or "auto",
+        "audio": rel,
+        "duration_sec": round(float(duration), 3),
+    }
+
+
+def render(scene: dict[str, Any], episode_id: int, out_dir: Path | None = None, progress=None) -> dict[str, Any]:
+    """Write independent beats in parallel and return a Godot playback packet."""
+    tts_dir = Path(out_dir) if out_dir else TTS_DIR
+    tts_dir.mkdir(parents=True, exist_ok=True)
+    models = _available_models()
+    beats_out: list[dict[str, Any] | None] = [None] * len(scene.get("beats") or [])
+    scene_beats = list(scene.get("beats") or [])
+    total = len(scene_beats)
+    if progress and total:
+        progress({"phase": "speaking", "beat": 0, "beats": total, "speaker": ""})
+    if total:
+        workers = min(_PIPER_PARALLELISM, total)
+        with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="piper-beat") as pool:
+            futures = [
+                pool.submit(_render_beat, beat, i, int(episode_id), tts_dir, models)
+                for i, beat in enumerate(scene_beats)
+            ]
+            completed = 0
+            for future in as_completed(futures):
+                index, rendered = future.result()
+                beats_out[index] = rendered
+                completed += 1
+                if progress:
+                    progress(
+                        {
+                            "phase": "speaking",
+                            "beat": completed,
+                            "beats": total,
+                            "speaker": rendered["speaker"],
+                        }
+                    )
+    ordered_beats = [beat for beat in beats_out if beat is not None]
     packet = {
         "episode_id": int(episode_id),
         "scene": scene.get("scene") or "living_room",
         "topic": scene.get("topic") or "",
         "source": scene.get("source") or "viewer",
-        "beats": beats_out,
+        "beats": ordered_beats,
     }
     try:
         from orchestrator import archive

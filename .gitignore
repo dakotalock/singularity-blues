@@ -28,5 +28,6 @@ renderer/.godot/
 *.translation
 
 # Godot web engine binary (assembled at build from tools/web-engine-parts)
+web/stage/index.js
 web/stage/*.wasm
 web/stage/*.pck

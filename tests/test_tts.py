@@ -1,5 +1,7 @@
 import hashlib
 import subprocess
+import threading
+import time
 import wave
 from pathlib import Path
 
@@ -99,6 +101,40 @@ def test_same_line_twice_skips_second_render(tmp_path, monkeypatch):
     assert calls == ["same words"]
     assert first["beats"][0]["audio"] == second["beats"][0]["audio"]
     assert Path(tmp_path / Path(first["beats"][0]["audio"]).name).is_file()
+
+
+def test_render_synthesizes_beats_in_parallel_and_preserves_order(tmp_path, monkeypatch):
+    active = 0
+    max_active = 0
+    lock = threading.Lock()
+
+    def fake_render(speaker, line, dest, models):
+        nonlocal active, max_active
+        with lock:
+            active += 1
+            max_active = max(max_active, active)
+        time.sleep(0.06)
+        _pcm_wav(dest, 0.25)
+        with lock:
+            active -= 1
+        return 0.25
+
+    _patch_io(monkeypatch, tmp_path)
+    monkeypatch.setattr(tts, "_render_line", fake_render)
+    lines = ["first", "second", "third", "fourth"]
+    packet = tts.render(
+        {
+            "beats": [
+                {"speaker": "reed", "line": line, "emotion": "calm", "animation": "talking"}
+                for line in lines
+            ]
+        },
+        19,
+        out_dir=tmp_path,
+    )
+    assert max_active >= 2
+    assert max_active <= tts._PIPER_PARALLELISM
+    assert [beat["line"] for beat in packet["beats"]] == lines
 
 
 def test_different_line_same_id_revoices(tmp_path, monkeypatch):

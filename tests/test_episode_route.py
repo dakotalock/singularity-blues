@@ -328,6 +328,11 @@ def test_private_showing_spends_without_public_queue(monkeypatch, tmp_path):
     assert body["topic"] not in topics
     assert body["topic"] not in writing
 
+    stranger = TestClient(app)
+    stranger.cookies.set("sb_buyer", sign_buyer("somebodyElse"))
+    hidden = stranger.get("/episode/status", params={"job_id": body["job_id"]})
+    assert hidden.status_code == 404
+
 
 def test_concurrent_private_jobs_do_not_block_each_other(monkeypatch, tmp_path):
     import threading
@@ -361,16 +366,17 @@ def test_concurrent_private_jobs_do_not_block_each_other(monkeypatch, tmp_path):
 
     monkeypatch.setattr("web.app.has_gemini_key", lambda: True)
     monkeypatch.setattr("web.app.run_episode", run)
-    client = TestClient(app)
-    r1 = client.post(
+    client_a = TestClient(app)
+    client_b = TestClient(app)
+    client_a.cookies.set("sb_buyer", sign_buyer("buyerA"))
+    client_b.cookies.set("sb_buyer", sign_buyer("buyerB"))
+    r1 = client_a.post(
         "/episode",
         json={"topic": "What if the thermostat joins the union", "username": "Alex", "private_showing": True},
-        cookies={"sb_buyer": sign_buyer("buyerA")},
     )
-    r2 = client.post(
+    r2 = client_b.post(
         "/episode",
         json={"topic": "What if the fridge files a brief", "username": "Rook", "private_showing": True},
-        cookies={"sb_buyer": sign_buyer("buyerB")},
     )
     assert r1.status_code == 200 and r2.status_code == 200
     deadline = time.time() + 2.5
@@ -378,8 +384,10 @@ def test_concurrent_private_jobs_do_not_block_each_other(monkeypatch, tmp_path):
         time.sleep(0.02)
     assert len(started) == 2, "private jobs did not overlap; writers were serialized"
     gate.set()
-    snap1 = _wait_job(client, r1.json()["job_id"])
-    snap2 = _wait_job(client, r2.json()["job_id"])
+    assert client_a.get("/episode/status", params={"job_id": r2.json()["job_id"]}).status_code == 404
+    assert client_b.get("/episode/status", params={"job_id": r1.json()["job_id"]}).status_code == 404
+    snap1 = _wait_job(client_a, r1.json()["job_id"])
+    snap2 = _wait_job(client_b, r2.json()["job_id"])
     assert snap1["status"] == "ready"
     assert snap2["status"] == "ready"
     assert snap1.get("private") is True

@@ -1,7 +1,8 @@
 """A small Piper pool. Viewer episodes first; archive backfill second.
 
 Two or three workers so private showings can voice at once, but never a stampede
-on a tiny Render box. Writers are never blocked on this queue: they start first
+on a tiny Render box. Only one worker accepts archive backfill, so boot-time
+reruns can never occupy every paid-viewer lane. Writers start before this queue
 and only wait here after the scene exists.
 """
 
@@ -18,7 +19,8 @@ LOW = 1
 MIN_WORKERS = 2
 MAX_WORKERS = 3
 
-_jobs: queue.PriorityQueue = queue.PriorityQueue()
+_high_jobs: queue.Queue = queue.Queue()
+_low_jobs: queue.Queue = queue.Queue()
 _seq = itertools.count()
 _started = threading.Event()
 _start_lock = threading.Lock()
@@ -42,25 +44,47 @@ def start() -> None:
         _started.set()
         while _worker_count < want:
             _worker_count += 1
+            # One mixed worker drains archive backfill when viewers are quiet.
+            # Every other worker remains reserved for viewer episodes.
+            allow_low = _worker_count == 1
             threading.Thread(
-                target=_worker, daemon=True, name=f"piper-queue-{_worker_count}"
+                target=_worker,
+                args=(allow_low,),
+                daemon=True,
+                name=f"piper-queue-{_worker_count}",
             ).start()
 
 
-def _worker() -> None:
+def _next_job(allow_low: bool):
+    try:
+        return _high_jobs, _high_jobs.get(timeout=0.15)
+    except queue.Empty:
+        if not allow_low:
+            return None, None
+    try:
+        return _low_jobs, _low_jobs.get(timeout=0.15)
+    except queue.Empty:
+        return None, None
+
+
+def _worker(allow_low: bool) -> None:
     while True:
-        _prio, _n, job = _jobs.get()
+        source, item = _next_job(allow_low)
+        if source is None or item is None:
+            continue
+        _n, job = item
         try:
             job()
         except Exception:
             pass
         finally:
-            _jobs.task_done()
+            source.task_done()
 
 
 def submit(priority: int, fn: Callable[[], Any]) -> None:
     start()
-    _jobs.put((int(priority), next(_seq), fn))
+    target = _high_jobs if int(priority) <= HIGH else _low_jobs
+    target.put((next(_seq), fn))
 
 
 def voice_episode(

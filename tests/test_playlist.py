@@ -204,10 +204,15 @@ def _drain_voice_queue(timeout=8.0):
     vq.start()
     deadline = time.time() + timeout
     while time.time() < deadline:
-        if getattr(vq._jobs, "unfinished_tasks", 0) == 0:
+        pending = getattr(vq._high_jobs, "unfinished_tasks", 0) + getattr(
+            vq._low_jobs, "unfinished_tasks", 0
+        )
+        if pending == 0:
             return
         time.sleep(0.02)
-    remaining = getattr(vq._jobs, "unfinished_tasks", None)
+    remaining = getattr(vq._high_jobs, "unfinished_tasks", 0) + getattr(
+        vq._low_jobs, "unfinished_tasks", 0
+    )
     raise AssertionError(f"voice queue still has unfinished_tasks={remaining}")
 
 
@@ -359,4 +364,3 @@ def test_played_at_persists_on_playlist_state(tmp_path, monkeypatch):
     pl._state = None
     state = pl._load()
     assert "21" in (state.get("played_at") or {})
-

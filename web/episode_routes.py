@@ -1,6 +1,8 @@
 """Episode, queue, and stage static routes."""
 
+import hmac
 import json
+import time
 import uuid
 from pathlib import Path
 
@@ -91,6 +93,7 @@ def register_episode(app):
         private = bool(body and body.private_showing)
         job_id = uuid.uuid4().hex[:12]
         with m._jobs_lock:
+            m._prune_jobs_locked()
             m._jobs[job_id] = {
                 "id": job_id,
                 "status": "running",
@@ -107,6 +110,8 @@ def register_episode(app):
                 "refunded": False,
                 "credits": balance(buyer_id)["credits"],
                 "private": private,
+                "buyer_id": buyer_id,
+                "created_at": time.time(),
             }
             if not private:
                 m._job_order.append(job_id)
@@ -150,6 +155,7 @@ def register_episode(app):
                     job["beats"] = len(packet.get("beats") or [])
                     job["beat"] = job["beats"]
                     job["private"] = private
+                    job["finished_at"] = time.time()
                     if private:
                         job["packet"] = m._viewer_private_packet(packet)
             except PromptRefused as exc:
@@ -171,6 +177,7 @@ def register_episode(app):
                     job["error"] = error
                     job["refunded"] = True
                     job["credits"] = balance(buyer_id)["credits"]
+                    job["finished_at"] = time.time()
             except Exception as exc:
                 if spent:
                     refund_credit(buyer_id, 1)
@@ -183,6 +190,7 @@ def register_episode(app):
                     job["error"] = m._public_job_error(exc)
                     job["refunded"] = True
                     job["credits"] = balance(buyer_id)["credits"]
+                    job["finished_at"] = time.time()
 
         m._spawn_job(_work, concurrent=private)
         return {
@@ -197,7 +205,7 @@ def register_episode(app):
         }
 
     @app.get("/episode/status")
-    def episode_status(job_id: str | None = None) -> dict:
+    def episode_status(request: Request, job_id: str | None = None) -> dict:
         jid = job_id or m._latest_job
         if not jid:
             rem = m.remaining_seconds()
@@ -213,6 +221,14 @@ def register_episode(app):
                 "eta_seconds": rem,
                 "eta_copy": (f"Now: {topic}" if (topic := m._airing_topic()) else ""),
             }
+        with m._jobs_lock:
+            stored = dict(m._jobs.get(jid) or {})
+        if stored.get("private"):
+            viewer = m.verify_buyer(request.cookies.get(m.BUYER_COOKIE)) or ""
+            owner = str(stored.get("buyer_id") or "")
+            if not viewer or not owner or not hmac.compare_digest(viewer, owner):
+                # Do not reveal whether another buyer's private packet exists.
+                raise HTTPException(status_code=404, detail="unknown job")
         snap = m._job_snapshot(jid)
         if not snap:
             raise HTTPException(status_code=404, detail="unknown job")
