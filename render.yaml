@@ -5,7 +5,7 @@ services:
     plan: free
     region: oregon
     buildCommand: pip install -r requirements.txt && python tools/assemble_web_engine.py && python tools/fetch_piper.py && python tools/fetch_ffmpeg.py
-    startCommand: uvicorn web.app:app --host 0.0.0.0 --port $PORT
+    startCommand: bash tools/livestream/render-start.sh
     envVars:
       - key: PYTHON_VERSION
         value: "3.12.8"
@@ -42,6 +42,10 @@ services:
       # Public custom-domain/base URL for the same R2 bucket. This keeps the
       # large 24/7 segment traffic off Render after each one-time upload.
       - key: R2_PUBLIC_BASE_URL
+        sync: false
+      # Optional zero-cost YouTube sidecar. When absent, startup is identical
+      # to the web-only path and the existing OVH -> Twitch relay is untouched.
+      - key: YOUTUBE_STREAM_KEY
         sync: false
       - key: STRIPE_SECRET_KEY
         sync: false

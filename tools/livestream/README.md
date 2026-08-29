@@ -168,6 +168,30 @@ sudo systemctl disable --now singularity-blues-youtube-relay-watchdog.timer
 sudo systemctl disable --now singularity-blues-youtube-relay.service
 ```
 
+### Render-side fallback when the VM login is unavailable
+
+The existing Render web service can host the YouTube packet-copy relay without
+changing the OVH Twitch relay. Set `YOUTUBE_STREAM_KEY` as a secret in Render
+and use `bash tools/livestream/render-start.sh` as the service start command.
+Never put the key in `render.yaml`, GitHub, screenshots, or logs.
+
+The wrapper keeps Uvicorn as Render's foreground process and starts the relay
+only when the secret is non-empty. It reads the local rolling HLS playlist,
+copies H.264/AAC into YouTube RTMPS, stores disposable state under `/tmp`, and
+scrubs the key from relay logs. If the sidecar fails, the public site and the
+independent OVH-to-Twitch relay continue running.
+
+Verify in Render logs:
+
+```text
+Render YouTube packet relay enabled
+source available; starting HLS packet copy
+```
+
+Then wait for the preview in YouTube Live Control Room before making the stream
+public. To disable this route, remove `YOUTUBE_STREAM_KEY` and restore the
+original Uvicorn start command; no OVH change is required.
+
 ## Test packet copy before going live
 
 Backend-only local test:
