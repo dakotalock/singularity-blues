@@ -1,0 +1,9 @@
+[Unit]
+Description=Health check for the Singularity Blues YouTube relay
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/singularity-blues-youtube-relay.env
+Environment=STATE_DIR=/var/lib/singularity-blues-youtube-relay
+ExecStart=/opt/singularity-blues/tools/livestream/healthcheck.sh
+ExecStopPost=/bin/sh -c 'if [ "$$EXIT_STATUS" != 0 ]; then systemctl kill --kill-who=all singularity-blues-youtube-relay.service; fi'

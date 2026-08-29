@@ -1,0 +1,11 @@
+[Unit]
+Description=Run Singularity Blues YouTube relay health check every 30 seconds
+
+[Timer]
+Unit=singularity-blues-youtube-relay-watchdog.service
+OnBootSec=45
+OnUnitActiveSec=30
+AccuracySec=5
+
+[Install]
+WantedBy=timers.target

@@ -117,6 +117,57 @@ sudo systemctl enable --now singularity-blues-relay-watchdog.timer
 Put the Twitch key only in `/etc/singularity-blues-relay.env`. Do not commit it
 or paste it into service logs.
 
+## Add YouTube without touching Twitch
+
+The YouTube relay is a second instance of the same packet-copy path. It reads
+the same pre-encoded HLS feed, keeps separate state and health supervision, and
+does not modify or restart the existing Twitch relay. One destination can
+reconnect without interrupting the other.
+
+Create a reusable YouTube stream in YouTube Studio and copy its stream key into
+the protected YouTube-only environment file. Never commit or log that key.
+
+```bash
+cd /opt/singularity-blues
+sudo git pull --ff-only origin main
+
+sudo install -m 0644 \
+  tools/livestream/singularity-blues-youtube-relay.service \
+  /etc/systemd/system/singularity-blues-youtube-relay.service
+sudo install -m 0644 \
+  tools/livestream/singularity-blues-youtube-relay-watchdog.service \
+  /etc/systemd/system/singularity-blues-youtube-relay-watchdog.service
+sudo install -m 0644 \
+  tools/livestream/singularity-blues-youtube-relay-watchdog.timer \
+  /etc/systemd/system/singularity-blues-youtube-relay-watchdog.timer
+sudo install -m 0600 \
+  tools/livestream/youtube-relay.env.example \
+  /etc/singularity-blues-youtube-relay.env
+sudoedit /etc/singularity-blues-youtube-relay.env
+
+sudo systemctl daemon-reload
+sudo systemctl enable --now singularity-blues-youtube-relay.service
+sudo systemctl enable --now singularity-blues-youtube-relay-watchdog.timer
+```
+
+Verify both independent outputs while they are live:
+
+```bash
+sudo systemctl status singularity-blues-relay.service
+sudo systemctl status singularity-blues-youtube-relay.service
+sudo env STATE_DIR=/var/lib/singularity-blues-relay \
+  /opt/singularity-blues/tools/livestream/healthcheck.sh
+sudo env STATE_DIR=/var/lib/singularity-blues-youtube-relay \
+  /opt/singularity-blues/tools/livestream/healthcheck.sh
+```
+
+To roll back only YouTube, leave Twitch running and disable the new units:
+
+```bash
+sudo systemctl disable --now singularity-blues-youtube-relay-watchdog.timer
+sudo systemctl disable --now singularity-blues-youtube-relay.service
+```
+
 ## Test packet copy before going live
 
 Backend-only local test:
